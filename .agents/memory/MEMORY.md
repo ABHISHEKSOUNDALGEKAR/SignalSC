@@ -3,3 +3,4 @@
 - [AI spending limits](ai-spending-limits.md) — count failed attempts; per-process request limits are not persistent financial ceilings.
 - [Search product intent](search-product-intent.md) — use AI extensively for helpful discovery, with exact matches and clearly labeled related alternatives.
 - [Search refinement privacy](search-refinement-privacy.md) — prefer structured session context; failed refinements must not silently broaden or replace the search.
+- [Registration tracking](registration-tracking.md) — Registered lives within Saved; external-link clicks require self-reported confirmation on return.
