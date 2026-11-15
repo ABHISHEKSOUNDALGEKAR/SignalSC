@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000">
+  <rect width="800" height="1000" fill="#d7dce2"/>
+  <!-- A complete, readable flyer photographed sideways, not clipped. -->
+  <g transform="translate(800 0) rotate(90)">
+    <rect x="30" y="30" width="940" height="740" rx="12" fill="#fffaf0"/>
+    <g fill="#142337" font-family="DejaVu Sans, sans-serif" text-anchor="middle">
+      <text x="500" y="190" font-size="60" font-weight="bold">Orbit Sketch Night</text>
+      <text x="500" y="340" font-size="42">November 22, 2026</text>
+      <text x="500" y="440" font-size="42">8:15 PM</text>
+      <text x="500" y="540" font-size="42">TCC 450</text>
+    </g>
+  </g>
+</svg>

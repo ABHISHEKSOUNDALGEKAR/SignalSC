@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+  <rect width="900" height="520" fill="#fffaf0"/>
+  <rect x="28" y="28" width="844" height="464" rx="28" fill="none" stroke="#990000" stroke-width="8"/>
+  <text x="450" y="150" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-weight="700" font-size="58" fill="#650000">Robotics Night</text>
+  <path d="M150 184H750" stroke="#e5b942" stroke-width="8"/>
+  <text x="450" y="270" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="36" fill="#25211f">Friday, November 20, 2026</text>
+  <text x="450" y="340" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" fill="#25211f">6:30 PM</text>
+  <text x="450" y="410" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="32" fill="#25211f">Leavey Library</text>
+</svg>

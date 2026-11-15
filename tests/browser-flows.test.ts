@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
 import express from 'express';
-import { chromium, type Browser } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext } from 'playwright-core';
 import { createServer as createViteServer, type ViteDevServer } from 'vite';
 
 const FIXTURE_EXTRACTION = {
@@ -67,6 +67,7 @@ test('organizer publishing and device-local saved-event flows work in a browser'
 
   let vite: ViteDevServer | undefined;
   let browser: Browser | undefined;
+  let blockedStorageContext: BrowserContext | undefined;
   try {
     vite = await createViteServer({
       configFile: 'vite.config.ts',
@@ -203,6 +204,31 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     await page.getByRole('heading', { name: 'Your events' }).waitFor();
     await page.getByText('Browser Flow Fixture', { exact: true }).waitFor();
 
+    blockedStorageContext = await browser.newContext();
+    await blockedStorageContext.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        configurable: false,
+        get() {
+          throw new DOMException('Storage access is denied.', 'SecurityError');
+        },
+      });
+    });
+    const blockedStoragePage = await blockedStorageContext.newPage();
+    const blockedStoragePageErrors: string[] = [];
+    blockedStoragePage.on('pageerror', error => blockedStoragePageErrors.push(error.message));
+    await blockedStoragePage.goto(`${webUrl}/#/event/${encodeURIComponent(eventId)}`);
+    await blockedStoragePage.getByRole('heading', { name: 'Browser Flow Fixture' }).waitFor();
+    const blockedSaveButton = blockedStoragePage.getByRole('button', { name: 'Save event' });
+    await blockedSaveButton.click();
+    const storageWarning = blockedStoragePage.getByRole('alert');
+    await storageWarning.waitFor();
+    assert.match((await storageWarning.textContent()) ?? '', /could not save the event.*allow site storage/i);
+    assert.equal(await blockedSaveButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(await blockedStoragePage.getByRole('button', { name: 'Save event' }).count(), 1);
+    assert.deepEqual(blockedStoragePageErrors, [], `Blocked-storage browser errors: ${blockedStoragePageErrors.join('; ')}`);
+    await blockedStorageContext.close();
+    blockedStorageContext = undefined;
+
     await page.goto(`${webUrl}/#/event/${encodeURIComponent(eventId)}`);
     await page.getByRole('heading', { name: 'Browser Flow Fixture' }).waitFor();
     const saveButton = page.getByRole('button', { name: 'Save event' });
@@ -248,6 +274,7 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     assert.deepEqual(pageErrors, [], `Browser console errors: ${pageErrors.join('; ')}`);
     await context.close();
   } finally {
+    await blockedStorageContext?.close();
     await browser?.close();
     await vite?.close();
     globalThis.fetch = originalFetch;
