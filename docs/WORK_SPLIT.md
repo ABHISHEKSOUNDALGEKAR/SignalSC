@@ -36,6 +36,16 @@ Errors: `{ error: string }` with 400/401/403/404/422/503.
 
 Local demo access codes (development only): `demo-a` → "Demo Org A", `demo-b` → "Demo Org B".
 
+## Real events while developing
+
+`npm run dev` imports the public EngageSC feed into memory on start, so `GET /api/events` returns about 290 real upcoming events with no setup. Things the client should handle for these `source-imported` events:
+
+- `location` is usually `null`; the reason is in `uncertainties[0]` ("Location is shown on EngageSC after USC sign-in."). Show that text and link `sourceUrl` ("View on EngageSC").
+- `organizationName` is the host from the feed. `registrationUrl` is `null`; use `sourceUrl`.
+- `food` is `advertised` only with a supporting line in `evidence`; most are `unknown`.
+- Weekly meetings repeat as separate events in `GET /api/events`. Search results already show each one once.
+- `docs/demo-flyers/` has three demo flyers for testing the organizer upload.
+
 ## Client screens (Davis)
 
 1. **Ask** — big input + starter prompts; render `answer`, `constraintSummary` chips, result cards with `reason`, and `excluded` notes. If `noMatch`, show the answer plainly.

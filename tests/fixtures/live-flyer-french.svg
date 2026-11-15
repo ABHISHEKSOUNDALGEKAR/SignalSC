@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">
+  <rect width="1200" height="800" fill="white"/>
+  <g fill="black" font-family="DejaVu Sans, sans-serif" text-anchor="middle" font-size="48">
+    <text x="600" y="120" font-size="60">Soirée de lecture</text>
+    <text x="600" y="260">25 ou 26 novembre 2026</text>
+    <text x="600" y="400">Date à confirmer</text>
+    <text x="600" y="540">Début : 19 h 15</text>
+    <text x="600" y="680">Lieu : Leavey Library</text>
+  </g>
+</svg>

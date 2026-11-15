@@ -10,9 +10,10 @@ Requires Node.js 22.17+ and npm.
 npm install
 cp .env.example .env
 npm run dev
+npm run test:server
 ```
 
-Frontend: http://localhost:5173. Backend: http://localhost:3001/api/health. The frontend proxies `/api` requests to port 3001; if changing that port, also change `vite.config.ts`.
+Frontend: http://localhost:5000. Backend: http://localhost:3001/api/health. The frontend proxies `/api` requests to port 3001; if changing that port, also change `vite.config.ts`.
 
 ```sh
 npm run typecheck

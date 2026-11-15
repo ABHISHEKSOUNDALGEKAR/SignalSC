@@ -1,5 +1,6 @@
 import pg from 'pg';
 import type { EventDraft } from '../shared/events';
+import { isProduction } from './env';
 
 export type StoredStatus = 'draft' | 'published' | 'cancelled';
 
@@ -19,6 +20,7 @@ export type StoredEvent = {
 };
 
 export type Flyer = { mimeType: string; bytes: Buffer };
+export type UpsertResult = 'inserted' | 'updated' | 'unchanged';
 
 export interface Store {
   readonly mode: 'live' | 'memory';
@@ -27,16 +29,23 @@ export interface Store {
   update(record: StoredEvent): Promise<void>;
   get(id: string): Promise<StoredEvent | null>;
   list(filter: { statuses: StoredStatus[]; organizationId?: string }): Promise<StoredEvent[]>;
-  // Insert or refresh an imported record by externalId; never touches organizer-owned records.
-  upsertImported(record: StoredEvent): Promise<'inserted' | 'updated'>;
+  // Insert or refresh an imported record by externalId. Keeps the existing id and timestamps,
+  // and leaves the record untouched when the source has not changed.
+  upsertImported(record: StoredEvent): Promise<UpsertResult>;
   saveFlyer(id: string, flyer: Flyer): Promise<void>;
   getFlyer(id: string): Promise<Flyer | null>;
+  getMeta(key: string): Promise<string | null>;
+  setMeta(key: string, value: string): Promise<void>;
 }
 
-class MemoryStore implements Store {
+const sameSource = (a: StoredEvent, b: StoredEvent) =>
+  JSON.stringify(a.data) === JSON.stringify(b.data) && a.organizationName === b.organizationName;
+
+export class MemoryStore implements Store {
   readonly mode = 'memory' as const;
   private events = new Map<string, StoredEvent>();
   private flyers = new Map<string, Flyer>();
+  private meta = new Map<string, string>();
   async init() {}
   async insert(record: StoredEvent) { this.events.set(record.id, structuredClone(record)); }
   async update(record: StoredEvent) { this.events.set(record.id, structuredClone(record)); }
@@ -46,88 +55,105 @@ class MemoryStore implements Store {
       .filter(r => filter.statuses.includes(r.status) && (!filter.organizationId || r.organizationId === filter.organizationId))
       .map(r => structuredClone(r));
   }
-  async upsertImported(record: StoredEvent) {
+  async upsertImported(record: StoredEvent): Promise<UpsertResult> {
     const existing = [...this.events.values()].find(r => r.externalId === record.externalId);
-    if (existing) {
-      this.events.set(existing.id, { ...structuredClone(record), id: existing.id, createdAt: existing.createdAt });
-      return 'updated' as const;
-    }
-    this.events.set(record.id, structuredClone(record));
-    return 'inserted' as const;
+    if (!existing) { this.events.set(record.id, structuredClone(record)); return 'inserted'; }
+    if (sameSource(existing, record)) return 'unchanged';
+    this.events.set(existing.id, { ...structuredClone(record), id: existing.id, createdAt: existing.createdAt, publishedAt: existing.publishedAt });
+    return 'updated';
   }
   async saveFlyer(id: string, flyer: Flyer) { this.flyers.set(id, flyer); }
   async getFlyer(id: string) { return this.flyers.get(id) ?? null; }
+  async getMeta(key: string) { return this.meta.get(key) ?? null; }
+  async setMeta(key: string, value: string) { this.meta.set(key, value); }
 }
 
-class PostgresStore implements Store {
+// The subset of pg.Pool the store needs.
+export type Queryable = { query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }> };
+
+const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS ts_events (
+     id TEXT PRIMARY KEY,
+     status TEXT NOT NULL,
+     organization_id TEXT,
+     external_id TEXT UNIQUE,
+     record JSONB NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  'CREATE INDEX IF NOT EXISTS ts_events_status_idx ON ts_events (status)',
+  'CREATE INDEX IF NOT EXISTS ts_events_org_idx ON ts_events (organization_id)',
+  `CREATE TABLE IF NOT EXISTS ts_flyers (
+     id TEXT PRIMARY KEY,
+     mime_type TEXT NOT NULL,
+     bytes BYTEA NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+  'CREATE TABLE IF NOT EXISTS ts_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+];
+
+export class PostgresStore implements Store {
   readonly mode = 'live' as const;
-  private pool: pg.Pool;
-  constructor(connectionString: string) {
-    this.pool = new pg.Pool({ connectionString, max: 5 });
-  }
-  async init() {
-    await this.pool.query(`
-      CREATE TABLE IF NOT EXISTS ts_events (
-        id TEXT PRIMARY KEY,
-        status TEXT NOT NULL,
-        organization_id TEXT,
-        external_id TEXT UNIQUE,
-        record JSONB NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS ts_events_status_idx ON ts_events (status);
-      CREATE INDEX IF NOT EXISTS ts_events_org_idx ON ts_events (organization_id);
-      CREATE TABLE IF NOT EXISTS ts_flyers (
-        id TEXT PRIMARY KEY,
-        mime_type TEXT NOT NULL,
-        bytes BYTEA NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );`);
-  }
+  constructor(private db: Queryable) {}
+  private async rows<T>(sql: string, params?: unknown[]) { return (await this.db.query(sql, params)).rows as T[]; }
+
+  async init() { for (const statement of SCHEMA) await this.db.query(statement); }
   async insert(r: StoredEvent) {
-    await this.pool.query(
-      'INSERT INTO ts_events (id, status, organization_id, external_id, record, updated_at) VALUES ($1,$2,$3,$4,$5,$6)',
-      [r.id, r.status, r.organizationId, r.externalId, r, r.updatedAt]);
+    await this.db.query(
+      'INSERT INTO ts_events (id, status, organization_id, external_id, record, updated_at) VALUES ($1,$2,$3,$4,$5::jsonb,$6)',
+      [r.id, r.status, r.organizationId, r.externalId, JSON.stringify(r), r.updatedAt]);
   }
   async update(r: StoredEvent) {
-    await this.pool.query(
-      'UPDATE ts_events SET status=$2, organization_id=$3, external_id=$4, record=$5, updated_at=$6 WHERE id=$1',
-      [r.id, r.status, r.organizationId, r.externalId, r, r.updatedAt]);
+    await this.db.query(
+      'UPDATE ts_events SET status=$2, organization_id=$3, external_id=$4, record=$5::jsonb, updated_at=$6 WHERE id=$1',
+      [r.id, r.status, r.organizationId, r.externalId, JSON.stringify(r), r.updatedAt]);
   }
   async get(id: string) {
-    const { rows } = await this.pool.query<{ record: StoredEvent }>('SELECT record FROM ts_events WHERE id=$1', [id]);
+    const rows = await this.rows<{ record: StoredEvent }>('SELECT record FROM ts_events WHERE id=$1', [id]);
     return rows[0]?.record ?? null;
   }
   async list(filter: { statuses: StoredStatus[]; organizationId?: string }) {
     const params: unknown[] = [filter.statuses];
-    let sql = 'SELECT record FROM ts_events WHERE status = ANY($1)';
+    let sql = 'SELECT record FROM ts_events WHERE status = ANY($1::text[])';
     if (filter.organizationId) { params.push(filter.organizationId); sql += ' AND organization_id = $2'; }
-    const { rows } = await this.pool.query<{ record: StoredEvent }>(sql, params);
-    return rows.map(r => r.record);
+    return (await this.rows<{ record: StoredEvent }>(sql, params)).map(r => r.record);
   }
-  async upsertImported(r: StoredEvent) {
-    const { rows } = await this.pool.query<{ id: string; record: StoredEvent }>(
-      'SELECT id, record FROM ts_events WHERE external_id=$1', [r.externalId]);
-    if (rows[0]) {
-      await this.update({ ...r, id: rows[0].id, createdAt: rows[0].record.createdAt });
-      return 'updated' as const;
-    }
-    await this.insert(r);
-    return 'inserted' as const;
+  async upsertImported(r: StoredEvent): Promise<UpsertResult> {
+    // One statement so concurrent imports cannot create duplicates.
+    const rows = await this.rows<{ inserted: boolean }>(
+      `INSERT INTO ts_events (id, status, organization_id, external_id, record, updated_at)
+       VALUES ($1,$2,NULL,$3,$4::jsonb,$5)
+       ON CONFLICT (external_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         updated_at = EXCLUDED.updated_at,
+         record = EXCLUDED.record || jsonb_build_object(
+           'id', ts_events.id, 'createdAt', ts_events.record->'createdAt', 'publishedAt', ts_events.record->'publishedAt')
+       WHERE ts_events.record->'data' IS DISTINCT FROM EXCLUDED.record->'data'
+          OR ts_events.record->'organizationName' IS DISTINCT FROM EXCLUDED.record->'organizationName'
+       RETURNING (xmax = 0) AS inserted`,
+      [r.id, r.status, r.externalId, JSON.stringify(r), r.updatedAt]);
+    if (!rows.length) return 'unchanged';
+    return rows[0].inserted ? 'inserted' : 'updated';
   }
   async saveFlyer(id: string, flyer: Flyer) {
-    await this.pool.query('INSERT INTO ts_flyers (id, mime_type, bytes) VALUES ($1,$2,$3)', [id, flyer.mimeType, flyer.bytes]);
+    await this.db.query('INSERT INTO ts_flyers (id, mime_type, bytes) VALUES ($1,$2,$3)', [id, flyer.mimeType, flyer.bytes]);
   }
   async getFlyer(id: string) {
-    const { rows } = await this.pool.query<{ mime_type: string; bytes: Buffer }>('SELECT mime_type, bytes FROM ts_flyers WHERE id=$1', [id]);
-    return rows[0] ? { mimeType: rows[0].mime_type, bytes: rows[0].bytes } : null;
+    const rows = await this.rows<{ mime_type: string; bytes: Uint8Array }>('SELECT mime_type, bytes FROM ts_flyers WHERE id=$1', [id]);
+    return rows[0] ? { mimeType: rows[0].mime_type, bytes: Buffer.from(rows[0].bytes) } : null;
+  }
+  async getMeta(key: string) {
+    const rows = await this.rows<{ value: string }>('SELECT value FROM ts_meta WHERE key=$1', [key]);
+    return rows[0]?.value ?? null;
+  }
+  async setMeta(key: string, value: string) {
+    await this.db.query('INSERT INTO ts_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, value]);
   }
 }
 
 export function createStore(): Store {
   const url = process.env.DATABASE_URL;
-  if (url) return new PostgresStore(url);
-  if (process.env.NODE_ENV === 'production') throw new Error('DATABASE_URL is required in production.');
+  if (url) return new PostgresStore(new pg.Pool({ connectionString: url, max: 5 }));
+  if (isProduction) throw new Error('DATABASE_URL is required in production.');
   console.warn('DATABASE_URL not set: using in-memory store (data resets on restart).');
   return new MemoryStore();
 }

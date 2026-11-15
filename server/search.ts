@@ -5,6 +5,7 @@ import { campusTimeToDate, formatCampusDay, formatCampusTime, localParts, minute
 
 const DAY = 86_400_000;
 const MAX_RESULTS = 5;
+const ONGOING_GRACE_MS = 12 * 60 * 60 * 1000;
 const STOPWORDS = new Set(('a an and any are at be can could do events event find for from get go happening i im in is it me my ' +
   'near of on or show some something stuff that the there things this to today tonight tomorrow week weekend what whats where ' +
   'which with after before free food pm am beginner beginners friendly anything want looking interested please campus usc ' +
@@ -115,7 +116,9 @@ export function inWindow(e: EventRecord, from: Date, to: Date): boolean {
   if (!e.startsAt) return false;
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : start;
-  return start < to && (start >= from || end > from);
+  // Events already under way still count, but months-long listings are not "upcoming".
+  const underWay = end > from && start.getTime() >= from.getTime() - ONGOING_GRACE_MS;
+  return start < to && (start >= from || underWay);
 }
 
 export function applyConstraints(events: EventRecord[], c: SearchConstraints) {
@@ -138,8 +141,17 @@ export function applyConstraints(events: EventRecord[], c: SearchConstraints) {
     kept.push({ event: e, score });
   }
   kept.sort((a, b) => b.score - a.score || new Date(a.event.startsAt!).getTime() - new Date(b.event.startsAt!).getTime());
+  // Weekly meetings and office hours repeat in the feed; show the next occurrence only.
+  const seen = new Set<string>();
+  const matches: EventRecord[] = [];
+  for (const { event } of kept) {
+    const key = `${event.title.trim().toLowerCase()}|${event.organizationName ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matches.push(event);
+  }
   const excluded: ExclusionNote[] = [...counts].map(([reason, count]) => ({ reason, count }));
-  return { matches: kept.map(k => k.event), excluded };
+  return { matches, excluded };
 }
 
 export function summarize(c: SearchConstraints): string[] {

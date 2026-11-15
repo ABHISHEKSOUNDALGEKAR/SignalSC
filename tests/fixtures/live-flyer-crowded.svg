@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1000">
+  <rect width="1200" height="1000" fill="#f3f5f7"/>
+  <text x="600" y="95" text-anchor="middle" font-family="DejaVu Sans, sans-serif"
+        font-size="48" font-weight="bold" fill="#13233a">CAMPUS CLUBS • THIS WEEK</text>
+  <rect x="65" y="150" width="520" height="720" rx="12" fill="#d6edff" stroke="#1674ad" stroke-width="5"/>
+  <rect x="615" y="150" width="520" height="720" rx="12" fill="#ffe8d1" stroke="#bb5728" stroke-width="5"/>
+  <g text-anchor="middle" font-family="DejaVu Sans, sans-serif" fill="#142337">
+    <text x="325" y="300" font-size="45" font-weight="bold">Robotics Night</text>
+    <text x="325" y="440" font-size="34">November 20, 2026</text>
+    <text x="325" y="520" font-size="34">6:30 PM</text>
+    <text x="325" y="620" font-size="34">TCC 450</text>
+    <text x="875" y="300" font-size="45" font-weight="bold">Film Screening</text>
+    <text x="875" y="440" font-size="34">November 21, 2026</text>
+    <text x="875" y="520" font-size="34">8:00 PM</text>
+    <text x="875" y="620" font-size="34">Leavey Library</text>
+  </g>
+  <text x="600" y="940" text-anchor="middle" font-family="DejaVu Sans, sans-serif"
+        font-size="22" fill="#556">Synthetic sample • two equally prominent event cards</text>
+</svg>
