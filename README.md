@@ -26,8 +26,12 @@ The production server serves the built frontend and API on `PORT` (default 3001)
 
 ### AI configuration and checks
 
-Set `MODEL_API_KEY` securely for your own OpenAI account; the default model is
-`gpt-4o-mini`. Existing `AI_INTEGRATIONS_OPENAI_*` configurations and custom
+Set `MODEL_API_KEY` securely for the account matching `MODEL_BASE_URL`.
+The default is OpenAI with `gpt-4o-mini`. This project's approved BluesMinds
+configuration uses `https://api.bluesminds.com/v1` with
+`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`. The adapter disables that
+model's default reasoning mode so short JSON responses fit their output budgets.
+Existing `AI_INTEGRATIONS_OPENAI_*` configurations and other custom
 OpenAI-compatible endpoints remain supported (see `.env.example`).
 `/api/health` reports whether a key is configured, not whether the account has
 credits or the provider is reachable.
@@ -37,6 +41,13 @@ requests, extracted unknown fields, constrained search, unavailable-provider
 errors, and unconfigured fallbacks. These tests make no external API calls.
 Successful live extraction and model-interpreted search must also be checked
 with an active, funded provider account.
+
+Run `npm run test:ai:live -- --confirm-live` to opt into real provider requests.
+This uses credits and synthetic fixtures in an isolated memory store, never
+the running app's database or organizer credentials. It checks text and
+PNG-only extraction, missing facts, constrained search and answers, and no-match
+behavior; it fails rather than accepting rule/template fallback as live success.
+See [the live verification record](docs/LIVE_AI_VERIFICATION.md) for scope and results.
 
 Without a key, extraction returns a manual draft. Provider failures return 503
 for extraction and leave no draft behind. Search falls back to deterministic

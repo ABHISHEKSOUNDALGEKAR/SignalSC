@@ -47,7 +47,9 @@ Return one JSON object with exactly these keys:
 - registrationDeadlineDate ("YYYY-MM-DD") and registrationDeadlineTime ("HH:MM"), or null
 - evidence: array of {field, excerpt} quoting the short flyer text that supports each non-null field
 - uncertainties: short notes about anything ambiguous, unreadable, missing, or contradictory
-Never invent details. Use null when something is not on the flyer. Do not infer dietary information.`;
+Never invent details. Use null when something is not on the flyer. Do not infer dietary information.
+The USC context is NOT evidence of attendance restrictions. If the source does not explicitly state who can attend, eligibility MUST be null.
+Do not infer free admission, beginner suitability, registration, location, or times from the event topic or campus context.`;
 
 function parseDate(date: string | null, time: string | null): Date | null {
   if (!date || !time) return null;
@@ -146,5 +148,17 @@ export async function extractDraft(input: { imageBase64?: string; mimeType?: str
     draft.uncertainties.push('Could not read this flyer reliably. Please fill in the details.');
     return { draft, extractedBy: 'manual' as const };
   }
-  return { draft: toDraft(parsed.data, now, sourceUrl), extractedBy: 'model' as const };
+  const extracted = parsed.data;
+  // Attendance restrictions must be supported by a quote, never by campus
+  // context. For text-only input we can also verify that quote is in the source.
+  const normalize = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+  const eligibilityEvidence = extracted.evidence.find(e =>
+    e.field === 'eligibility' && e.excerpt.trim() &&
+    (input.imageBase64 || (input.text && normalize(input.text).includes(normalize(e.excerpt)))));
+  if (extracted.eligibility && !eligibilityEvidence) {
+    extracted.eligibility = null;
+    extracted.evidence = extracted.evidence.filter(e => e.field !== 'eligibility');
+    extracted.uncertainties.push('Attendance eligibility was not supported by source evidence. Please confirm.');
+  }
+  return { draft: toDraft(extracted, now, sourceUrl), extractedBy: 'model' as const };
 }

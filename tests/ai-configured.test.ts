@@ -5,6 +5,7 @@ import express from 'express';
 // Isolated test-process fixtures; never used for a real provider request.
 process.env.MODEL_API_KEY = 'test-only-not-a-credential';
 process.env.MODEL_BASE_URL = 'https://model.test/v1';
+process.env.MODEL_NAME = 'gpt-4o-mini';
 process.env.NODE_ENV = 'development';
 delete process.env.DATABASE_URL;
 delete process.env.ORGANIZER_ACCESS_CODES;
@@ -36,6 +37,7 @@ test('text and image extraction use the OpenAI-compatible request and preserve u
     assert.equal(url, 'https://model.test/v1/chat/completions');
     const body = JSON.parse(String(init?.body));
     assert.equal(body.response_format.type, 'json_object');
+    assert.equal(body.chat_template_kwargs, undefined);
     assert.match(body.messages[0].content, /untrusted data/);
     assert.ok(body.messages[1].content.some((p: {type: string}) => p.type === 'image_url'));
     return reply({
@@ -72,6 +74,24 @@ test('search filters stored events deterministically and rejects invented result
   assert.deepEqual(result.results.map(r => r.event.id), ['robot']);
   assert.equal(result.constraints.afterMinutes, 1020);
   assert.equal(result.excluded.reduce((n, e) => n + e.count, 0), 5);
+});
+
+test('attendance restrictions require source evidence, not USC context', async () => {
+  for (const evidence of [[], [{ field: 'eligibility', excerpt: 'USC students only' }]]) {
+    globalThis.fetch = async () => reply({
+      title: 'Robot Night', eligibility: 'USC students only', evidence,
+    });
+    const result = await extractDraft({ text: 'Robot Night' }, now);
+    assert.equal(result.draft.eligibility, null);
+    assert.ok(result.draft.uncertainties.some(note => /eligibility/.test(note)));
+    assert.ok(!result.draft.evidence.some(e => e.field === 'eligibility'));
+  }
+  globalThis.fetch = async () => reply({
+    title: 'Robot Night', eligibility: 'Open to all',
+    evidence: [{ field: 'eligibility', excerpt: 'Open to all' }],
+  });
+  const supported = await extractDraft({ text: 'Robot Night. Open to all.' }, now);
+  assert.equal(supported.draft.eligibility, 'Open to all');
 });
 
 test('no-match answer does not ask the model to invent events', async () => {

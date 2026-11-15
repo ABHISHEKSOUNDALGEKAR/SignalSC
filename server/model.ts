@@ -29,6 +29,12 @@ export async function completeJson(messages: ChatMessage[], maxTokens = 1500): P
         temperature: 0,
         max_tokens: maxTokens,
         response_format: { type: 'json_object' },
+        // Nemotron Omni reasons by default, consuming the small JSON-only output
+        // budgets before producing an answer. Its documented instruct mode
+        // disables this without changing requests to other compatible models.
+        ...(modelName === 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
+          ? { chat_template_kwargs: { enable_thinking: false } }
+          : {}),
       }),
     });
     if (!response.ok) {

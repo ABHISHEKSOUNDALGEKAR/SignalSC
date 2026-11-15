@@ -1,0 +1,1 @@
+- [AI provider approval](ai-provider.md) — BluesMinds was explicitly approved; keep synthetic live checks separate from automatic tests.

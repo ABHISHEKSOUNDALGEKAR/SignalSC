@@ -1,4 +1,4 @@
-modules = ["web", "nodejs-22"]
+modules = ["web", "nodejs-22", "python-base-3.13"]
 
 [nix]
 channel = "stable-25_05"
@@ -41,3 +41,9 @@ externalPort = 80
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
+
+[userenv]
+
+[userenv.shared]
+MODEL_BASE_URL = "https://api.bluesminds.com/v1"
+MODEL_NAME = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
