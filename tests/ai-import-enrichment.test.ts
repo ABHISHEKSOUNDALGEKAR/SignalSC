@@ -322,6 +322,28 @@ test('full untruncated source and exact multiline evidence are available for gro
   assert.ok(mapped.sourceText.includes(mapped.draft.evidence[0].excerpt));
 });
 
+test('import cache pruning is bounded and keeps live leases, retry cooldowns, and model admission', async () => {
+  const retention = 30 * 24 * 60 * 60 * 1000;
+  const store = new MemoryStore(() => clock);
+  await store.setMeta('import-details:old-success', JSON.stringify({ details: empty(), successAt: clock - retention - 1 }));
+  await store.setMeta('import-details:expired-retry', JSON.stringify({ retryAt: clock - 1 }));
+  await store.setMeta('import-details:old-lease', JSON.stringify({ token: 'expired', until: clock - 1 }));
+  await store.setMeta('import-details:recent-success', JSON.stringify({ details: empty(), successAt: clock - retention + 1 }));
+  await store.setMeta('import-details:active-lease', JSON.stringify({ token: 'active', until: clock + 60_000 }));
+  await store.setMeta('import-details:cooldown', JSON.stringify({ retryAt: clock + 60_000 }));
+  await store.setMeta('model-admission:v1', JSON.stringify({ active: 1 }));
+
+  assert.equal(await store.pruneImportEnrichmentCache(retention, 2), 2);
+  assert.equal(await store.getMeta('import-details:old-success'), null);
+  assert.equal(await store.getMeta('import-details:expired-retry'), null);
+  assert.notEqual(await store.getMeta('import-details:old-lease'), null);
+  assert.equal(await store.pruneImportEnrichmentCache(retention, 10), 1);
+  for (const key of ['import-details:recent-success', 'import-details:active-lease',
+    'import-details:cooldown', 'model-admission:v1']) {
+    assert.notEqual(await store.getMeta(key), null, `${key} must survive pruning`);
+  }
+});
+
 test('persistent enrichment cache uses existing PostgreSQL metadata operations', async () => {
   const values = new Map<string, string>();
   const store = () => new PostgresStore({ async query(sql, params = []) {

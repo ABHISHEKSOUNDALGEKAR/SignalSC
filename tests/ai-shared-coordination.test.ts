@@ -163,6 +163,9 @@ test('simultaneous imports through independent PostgreSQL stores send only one s
   const one = input();
   const pending = enrichImportedEvents(first, [one]);
   await started;
+  await first.setMeta('model-admission:v1', JSON.stringify({ active: 1 }));
+  await first.pruneImportEnrichmentCache(30 * 24 * 60 * 60 * 1000, 100);
+  assert.ok(await first.getMeta('model-admission:v1'));
   await enrichImportedEvents(second, [input()]);
   assert.equal(calls, 1);
   finish();
@@ -172,6 +175,33 @@ test('simultaneous imports through independent PostgreSQL stores send only one s
   assert.equal(calls, 1);
   assert.equal(one.draft.food, 'advertised');
   assert.equal(later.draft.food, 'advertised');
+});
+
+test('PostgreSQL pruning removes stale entries but preserves active leases and unexpired cooldowns', pgTest, async () => {
+  const snapshot = await first.getMetaSnapshot(stateKey);
+  const retention = 30 * 24 * 60 * 60 * 1000;
+  await first.setMeta('import-details:stale-success', JSON.stringify({
+    details: { food: 'unknown' }, successAt: snapshot.now - retention - 1,
+  }));
+  await first.setMeta('import-details:expired-cooldown', JSON.stringify({ retryAt: snapshot.now - 1 }));
+  await first.setMeta('import-details:recent-success', JSON.stringify({
+    details: { food: 'unknown' }, successAt: snapshot.now,
+  }));
+  const lease = await claimImportCache(first, 'import-details:active', snapshot.now);
+  const cooldown = await claimImportCache(first, 'import-details:cooldown', snapshot.now);
+  if (lease.kind !== 'owned' || cooldown.kind !== 'owned') throw new Error('Missing cache claim');
+  assert.equal(await lease.beforeAttempt(), true);
+  assert.equal(await cooldown.beforeAttempt(), true);
+  await first.setMeta(stateKey, JSON.stringify({ active: 1 }));
+
+  assert.equal(await first.pruneImportEnrichmentCache(retention, 100), 2);
+  assert.equal(await first.getMeta('import-details:stale-success'), null);
+  assert.equal(await first.getMeta('import-details:expired-cooldown'), null);
+  for (const key of ['import-details:recent-success', 'import-details:active', 'import-details:cooldown', stateKey]) {
+    assert.notEqual(await first.getMeta(key), null, `${key} must survive pruning`);
+  }
+  assert.equal((await claimImportCache(second, 'import-details:active')).kind, 'busy');
+  assert.equal((await claimImportCache(second, 'import-details:cooldown')).kind, 'busy');
 });
 
 test('cache lease expiry recovers pre-send crashes and fences stale completion and cleanup', pgTest, async () => {

@@ -11,6 +11,8 @@ import type { ImportHealthOutcome, ImportHealthRun } from '../shared/api';
 // cached too; absence of a fact is not a reason to pay for the same source again.
 const VERSION = 'v1';
 export const IMPORT_BATCH_SIZE = 8;
+export const IMPORT_CACHE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const IMPORT_CACHE_CLEANUP_MIN = 100;
 const fields = ['food', 'beginnerFriendly', 'topics', 'costCents', 'eligibility', 'registrationUrl'] as const;
 type Field = typeof fields[number];
 const detailsSchema = z.object({
@@ -144,7 +146,20 @@ export async function enrichImportedEvents(store: Store, inputs: Input[], now = 
   const pending = previous.catch(() => {}).then(async () => {
     const health = importHealthRecorder(store, source, now);
     try { await enrich(store, inputs, now, health); }
-    finally { await health.save(); }
+    finally {
+      try { await health.save(); }
+      finally {
+        try {
+          // Scale the bounded sweep to the maximum number of keys this import
+          // can add, so cleanup keeps pace even with unusually large feeds.
+          await store.pruneImportEnrichmentCache(
+            IMPORT_CACHE_RETENTION_MS, Math.max(IMPORT_CACHE_CLEANUP_MIN, inputs.length),
+          );
+        } catch {
+          console.warn('Imported event cache cleanup unavailable; retaining existing cache entries.');
+        }
+      }
+    }
   });
   queues.set(store, pending);
   try { await pending; }

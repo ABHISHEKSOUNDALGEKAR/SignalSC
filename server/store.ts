@@ -55,6 +55,7 @@ export interface Store extends CoordinationStore {
   listFeedback(eventId: string): Promise<StoredFeedback[]>;
   getMeta(key: string): Promise<string | null>;
   setMeta(key: string, value: string): Promise<void>;
+  pruneImportEnrichmentCache(retentionMs: number, limit: number): Promise<number>;
 }
 
 const sameSource = (a: StoredEvent, b: StoredEvent) =>
@@ -98,6 +99,23 @@ export class MemoryStore implements Store {
   }
   async getMeta(key: string) { return this.meta.get(key) ?? null; }
   async setMeta(key: string, value: string) { this.meta.set(key, value); }
+  async pruneImportEnrichmentCache(retentionMs: number, limit: number) {
+    const now = this.clock();
+    let removed = 0;
+    for (const [key, value] of this.meta) {
+      if (removed >= limit || !key.startsWith('import-details:')) continue;
+      let entry: { successAt?: unknown; retryAt?: unknown; until?: unknown };
+      try { entry = JSON.parse(value); }
+      catch { continue; }
+      const time = (candidate: unknown) => typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : 0;
+      const safe = time(entry.until) <= now && time(entry.retryAt) <= now;
+      const stale = value === '{}' || (typeof entry.successAt === 'number' && entry.successAt < now - retentionMs) ||
+        (typeof entry.retryAt === 'number' && entry.retryAt <= now) ||
+        (typeof entry.until === 'number' && entry.until <= now);
+      if (safe && stale) { this.meta.delete(key); removed++; }
+    }
+    return removed;
+  }
   async getMetaSnapshot(key: string, now = this.clock()) { return { value: this.meta.get(key) ?? null, now }; }
   async compareMeta(key: string, expected: string | null, value: string, validUntil?: number) {
     if ((this.meta.get(key) ?? null) !== expected || (validUntil !== undefined && this.clock() >= validUntil)) return false;
@@ -230,6 +248,43 @@ export class PostgresStore implements Store {
   }
   async setMeta(key: string, value: string) {
     await this.db.query('INSERT INTO ts_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, value]);
+  }
+  async pruneImportEnrichmentCache(retentionMs: number, limit: number) {
+    const result = await this.rows<{ key: string }>(
+      `WITH candidates AS (
+         SELECT key
+         FROM ts_meta
+         WHERE key LIKE 'import-details:%'
+           AND CASE WHEN value ~ '"until"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+             THEN substring(value FROM '"until"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric ELSE 0 END
+               <= floor(extract(epoch FROM clock_timestamp()) * 1000)
+           AND CASE WHEN value ~ '"retryAt"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+             THEN substring(value FROM '"retryAt"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric ELSE 0 END
+               <= floor(extract(epoch FROM clock_timestamp()) * 1000)
+           AND (
+             value = '{}'
+             OR (value ~ '"successAt"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+               AND substring(value FROM '"successAt"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric
+                 < floor(extract(epoch FROM clock_timestamp()) * 1000) - $1)
+             OR (value ~ '"retryAt"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+               AND substring(value FROM '"retryAt"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric
+                 <= floor(extract(epoch FROM clock_timestamp()) * 1000))
+             OR (value ~ '"until"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+               AND substring(value FROM '"until"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric
+                 <= floor(extract(epoch FROM clock_timestamp()) * 1000))
+           )
+         ORDER BY CASE WHEN value ~ '"successAt"[[:space:]]*:[[:space:]]*[0-9]{1,16}'
+           THEN substring(value FROM '"successAt"[[:space:]]*:[[:space:]]*([0-9]{1,16})')::numeric ELSE 0 END
+         LIMIT $2
+         FOR UPDATE SKIP LOCKED
+       )
+       DELETE FROM ts_meta AS meta
+       USING candidates
+       WHERE meta.key = candidates.key
+       RETURNING meta.key`,
+      [retentionMs, limit],
+    );
+    return result.length;
   }
   async getMetaSnapshot(key: string) {
     const [row] = await this.rows<{ value: string | null; now: number }>(
