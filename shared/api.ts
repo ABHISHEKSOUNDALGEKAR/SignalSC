@@ -116,7 +116,28 @@ export type ImportHealthRun = {
     retryEligible: number; nextRetryAt: string | null;
   }[];
 };
-export type ImportHealthResponse = { modelConfigured: boolean; runs: ImportHealthRun[] };
+export const feedImportFailureCategories = ['request_failed', 'invalid_feed', 'event_save_failed'] as const;
+export type FeedImportFailureCategory = typeof feedImportFailureCategories[number];
+export type FeedImportStageStatus = 'pending' | 'succeeded' | 'failed' | 'not_attempted';
+export type FeedImportHealth = {
+  source: 'engagesc' | 'usc-calendar';
+  lastAttemptAt: string;
+  lastCompletedAt: string | null;
+  freshness: 'fresh' | 'stale' | 'never';
+  fetch: {
+    status: Exclude<FeedImportStageStatus, 'not_attempted'>;
+    failureCategory: Extract<FeedImportFailureCategory, 'request_failed' | 'invalid_feed'> | null;
+  };
+  eventSave: {
+    status: FeedImportStageStatus;
+    failureCategory: Extract<FeedImportFailureCategory, 'event_save_failed'> | null;
+  };
+};
+export type ImportHealthResponse = {
+  modelConfigured: boolean;
+  runs: ImportHealthRun[];
+  feedImports: FeedImportHealth[];
+};
 export type EventsResponse = { events: EventRecord[]; mode: 'live' };
 export type EventResponse = { event: EventRecord };
 export type DraftResponse = { draft: DraftRecord };

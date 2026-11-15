@@ -51,7 +51,11 @@ test('organizer publishing and device-local saved-event flows work in a browser'
   const { createStore } = await import('../server/store');
   const store = createStore();
   await store.init();
-  const { importHealthRecorder } = await import('../server/import-health');
+  const { feedImportHealthRecorder, importHealthRecorder } = await import('../server/import-health');
+  const feedHealth = feedImportHealthRecorder(store, 'engagesc', new Date('2035-01-01T00:00:00Z'));
+  feedHealth.fetchSucceeded();
+  feedHealth.completed();
+  await feedHealth.save();
   const health = importHealthRecorder(store, 'engagesc', new Date('2035-01-01T00:00:00Z'));
   health.add('cached_unknown', 2);
   health.add('provider_failure', 3, Date.parse('2035-01-02T00:00:00Z'));
@@ -102,7 +106,7 @@ test('organizer publishing and device-local saved-event flows work in a browser'
 
     await page.goto(`${webUrl}/#/organizer`);
     await page.getByRole('heading', { name: 'Organizer sign in' }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Calendar detail recovery' }).count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'Calendar import health' }).count(), 0);
 
     await page.getByLabel('Organization access code').fill('not-the-code');
     await page.getByRole('button', { name: 'Continue' }).click();
@@ -113,7 +117,11 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     await page.getByLabel('Organization access code').fill('browser-test-code');
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
-    await page.getByRole('heading', { name: 'Calendar detail recovery' }).waitFor();
+    await page.getByRole('heading', { name: 'Calendar import health' }).waitFor();
+    await page.getByText(/Last completed feed import:/).waitFor();
+    await page.getByText(/Freshness: Fresh \(completed within two hours\)/).waitFor();
+    await page.getByText('Feed fetch: Succeeded').waitFor();
+    await page.getByText('Event saving: Succeeded').waitFor();
     await page.getByText('Reused successful unknowns: 2', { exact: true }).waitFor();
     await page.getByText('Provider request failed: 3', { exact: true }).waitFor();
     await page.getByText('Rejected by usage or concurrency limits: 1', { exact: true }).waitFor();

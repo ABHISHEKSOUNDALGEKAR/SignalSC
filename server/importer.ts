@@ -7,6 +7,7 @@ import type { Store, StoredEvent } from './store';
 import { campusTimeToDate, toCampusIso } from './time';
 import { enrichEngageScFood } from './engagesc-details';
 import { enrichImportedEvents } from './import-enrichment';
+import { feedImportHealthRecorder } from './import-health';
 
 export const DEFAULT_FEED_URL = 'https://engage.usc.edu/ical/usc/ical_usc.ics';
 const REFRESH_MS = 60 * 60 * 1000; // the feed publishes a one-hour TTL
@@ -94,9 +95,32 @@ export type ImportResult = { inserted: number; updated: number; unchanged: numbe
 
 export async function importFeed(store: Store, url: string, now = new Date()): Promise<ImportResult> {
   const sourceKind: EventDraft['sourceKind'] = /calendar\.usc\.edu/.test(url) ? 'usc-calendar' : 'engagesc';
-  const response = await fetch(url, { headers: { Accept: 'text/calendar', 'User-Agent': 'SignalSC/0.1 (student project)' }, signal: AbortSignal.timeout(30_000) });
-  if (!response.ok) throw new Error(`Feed request failed: ${response.status}`);
-  const parsed = parseIcs(await response.text(), campusTimeToDate);
+  const health = feedImportHealthRecorder(store, sourceKind, now);
+  await health.save();
+  let response: Response;
+  let body: string;
+  try {
+    response = await fetch(url, { headers: { Accept: 'text/calendar', 'User-Agent': 'SignalSC/0.1 (student project)' }, signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) throw new Error('Feed request failed.');
+    body = await response.text();
+  } catch {
+    health.fetchFailed('request_failed');
+    await health.save();
+    throw new Error('Feed request failed.');
+  }
+  let parsed: ParsedIcsEvent[];
+  try {
+    if (!/^BEGIN:VCALENDAR\s*$/im.test(body) || !/^END:VCALENDAR\s*$/im.test(body)) {
+      throw new Error('Invalid calendar feed.');
+    }
+    parsed = parseIcs(body, campusTimeToDate);
+  } catch {
+    health.fetchFailed('invalid_feed');
+    await health.save();
+    throw new Error('Feed content could not be read.');
+  }
+  health.fetchSucceeded();
+  await health.save();
   const result: ImportResult = { inserted: 0, updated: 0, unchanged: 0, skipped: 0 };
   const stamp = now.toISOString();
   const records: StoredEvent[] = [];
@@ -106,24 +130,32 @@ export async function importFeed(store: Store, url: string, now = new Date()): P
     if (!mapped) { result.skipped++; continue; }
     mappedEvents.push(mapped);
   }
-  // Retain the archive without spending credits to eagerly enrich past events.
-  // Both AI enrichment and public-detail prefetch target upcoming listings.
-  await enrichImportedEvents(store, mappedEvents.filter(({ draft }) =>
-    Date.parse(draft.endsAt ?? draft.startsAt ?? '') >= now.getTime()), now, sourceKind);
-  for (const mapped of mappedEvents) {
-    const record: StoredEvent = {
-      id: newId(), status: 'published', organizationId: null, organizationName: mapped.organizationName, data: mapped.draft,
-      flyerId: null, extractedBy: 'import', confirmation: 'source-imported', externalId: mapped.externalId,
-      createdAt: stamp, updatedAt: stamp, publishedAt: stamp,
-    };
-    records.push(record);
+  try {
+    // Retain the archive without spending credits to eagerly enrich past events.
+    // Both AI enrichment and public-detail prefetch target upcoming listings.
+    await enrichImportedEvents(store, mappedEvents.filter(({ draft }) =>
+      Date.parse(draft.endsAt ?? draft.startsAt ?? '') >= now.getTime()), now, sourceKind);
+    for (const mapped of mappedEvents) {
+      const record: StoredEvent = {
+        id: newId(), status: 'published', organizationId: null, organizationName: mapped.organizationName, data: mapped.draft,
+        flyerId: null, extractedBy: 'import', confirmation: 'source-imported', externalId: mapped.externalId,
+        createdAt: stamp, updatedAt: stamp, publishedAt: stamp,
+      };
+      records.push(record);
+    }
+    // Keep the archive searchable, but only prefetch public details for upcoming listings.
+    // Past listings are refreshed when someone opens their detail page.
+    const enriched = await enrichEngageScFood(store, records, now, true);
+    for (const record of enriched) {
+      result[await store.upsertImported(record)]++;
+    }
+  } catch (error) {
+    health.saveFailed();
+    await health.save();
+    throw error;
   }
-  // Keep the archive searchable, but only prefetch public details for upcoming listings.
-  // Past listings are refreshed when someone opens their detail page.
-  const enriched = await enrichEngageScFood(store, records, now, true);
-  for (const record of enriched) {
-    result[await store.upsertImported(record)]++;
-  }
+  health.completed();
+  await health.save();
   return result;
 }
 
