@@ -1,4 +1,4 @@
-// One admission gate shared by every model consumer in this server process.
+// Database-free development/test gate. PostgreSQL deployments use SharedModelBudget.
 export class ModelCapacityError extends Error {}
 
 export function readModelLimit(name: string, fallback: number, minimum: number): number {

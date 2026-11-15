@@ -257,7 +257,19 @@ test('full untruncated source and exact multiline evidence are available for gro
 test('persistent enrichment cache uses existing PostgreSQL metadata operations', async () => {
   const values = new Map<string, string>();
   const store = () => new PostgresStore({ async query(sql, params = []) {
-    if (sql.startsWith('INSERT INTO ts_meta')) values.set(String(params[0]), String(params[1]));
+    if (sql.startsWith('SELECT (SELECT value')) return { rows: [{ value: values.get(String(params[0])) ?? null, now: now.getTime() }] };
+    if (sql.startsWith('INSERT INTO ts_meta')) {
+      const key = String(params[0]);
+      if (values.has(key)) return { rows: [] };
+      values.set(key, String(params[1]));
+      return { rows: [{ key }] };
+    }
+    if (sql.startsWith('UPDATE ts_meta')) {
+      const key = String(params[0]);
+      if (values.get(key) !== params[1]) return { rows: [] };
+      values.set(key, String(params[2]));
+      return { rows: [{ key }] };
+    }
     if (sql.startsWith('SELECT value')) return { rows: values.has(String(params[0])) ? [{ value: values.get(String(params[0])) }] : [] };
     return { rows: [] };
   } });

@@ -32,7 +32,13 @@ export type StoredFeedback = {
   createdAt: string;
 };
 
-export interface Store {
+export interface CoordinationStore {
+  // PostgreSQL supplies its own clock so replica clock skew cannot reset limits.
+  getMetaSnapshot(key: string, now?: number): Promise<{ value: string | null; now: number }>;
+  compareMeta(key: string, expected: string | null, value: string, validUntil?: number): Promise<boolean>;
+}
+
+export interface Store extends CoordinationStore {
   readonly mode: 'live' | 'memory';
   init(): Promise<void>;
   close?(): Promise<void>;
@@ -56,6 +62,7 @@ const sameSource = (a: StoredEvent, b: StoredEvent) =>
 
 export class MemoryStore implements Store {
   readonly mode = 'memory' as const;
+  constructor(private readonly clock = Date.now) {}
   private events = new Map<string, StoredEvent>();
   private flyers = new Map<string, Flyer>();
   private feedback = new Map<string, StoredFeedback>();
@@ -91,6 +98,12 @@ export class MemoryStore implements Store {
   }
   async getMeta(key: string) { return this.meta.get(key) ?? null; }
   async setMeta(key: string, value: string) { this.meta.set(key, value); }
+  async getMetaSnapshot(key: string, now = this.clock()) { return { value: this.meta.get(key) ?? null, now }; }
+  async compareMeta(key: string, expected: string | null, value: string, validUntil?: number) {
+    if ((this.meta.get(key) ?? null) !== expected || (validUntil !== undefined && this.clock() >= validUntil)) return false;
+    this.meta.set(key, value);
+    return true;
+  }
 }
 
 // The subset of pg.Pool the store needs.
@@ -218,11 +231,30 @@ export class PostgresStore implements Store {
   async setMeta(key: string, value: string) {
     await this.db.query('INSERT INTO ts_meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value', [key, value]);
   }
+  async getMetaSnapshot(key: string) {
+    const [row] = await this.rows<{ value: string | null; now: number }>(
+      `SELECT (SELECT value FROM ts_meta WHERE key=$1) AS value,
+       floor(extract(epoch FROM clock_timestamp()) * 1000)::float8 AS now`, [key]);
+    return row;
+  }
+  async compareMeta(key: string, expected: string | null, value: string, validUntil?: number) {
+    const result = expected === null
+      ? await this.rows(`INSERT INTO ts_meta (key,value) SELECT $1,$2
+          WHERE ($3::float8 IS NULL OR extract(epoch FROM clock_timestamp()) * 1000 < $3)
+          ON CONFLICT (key) DO NOTHING RETURNING key`, [key, value, validUntil ?? null])
+      : await this.rows(`UPDATE ts_meta SET value=$3 WHERE key=$1 AND value=$2
+          AND ($4::float8 IS NULL OR extract(epoch FROM clock_timestamp()) * 1000 < $4)
+          RETURNING key`, [key, expected, value, validUntil ?? null]);
+    return result.length === 1;
+  }
 }
 
 export function createStore(): Store {
   const url = process.env.DATABASE_URL;
-  if (url) return new PostgresStore(new pg.Pool({ connectionString: url, max: 5 }));
+  if (url) return new PostgresStore(new pg.Pool({
+    connectionString: url, max: 5, connectionTimeoutMillis: 2000,
+    statement_timeout: 5000, lock_timeout: 1000, allowExitOnIdle: true,
+  }));
   if (isProduction) throw new Error('DATABASE_URL is required in production.');
   console.warn('DATABASE_URL not set: using in-memory store (data resets on restart).');
   return new MemoryStore();

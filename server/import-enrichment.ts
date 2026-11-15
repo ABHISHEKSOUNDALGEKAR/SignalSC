@@ -3,12 +3,12 @@ import { z } from 'zod';
 import type { EventDraft } from '../shared/events';
 import { completeJson, modelConfigured, ModelLimitError } from './model';
 import type { Store } from './store';
+import { claimImportCache, type CacheClaim } from './import-cache';
 
 // Bump when the prompt or grounding rules change. Successful unknown results are
 // cached too; absence of a fact is not a reason to pay for the same source again.
 const VERSION = 'v1';
 export const IMPORT_BATCH_SIZE = 8;
-const RETRY_MS = 24 * 60 * 60 * 1000;
 const fields = ['food', 'beginnerFriendly', 'topics', 'costCents', 'eligibility', 'registrationUrl'] as const;
 type Field = typeof fields[number];
 const detailsSchema = z.object({
@@ -166,48 +166,60 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
     else grouped.set(key, { source, drafts: [draft] });
   }
   if (!modelConfigured) return;
-  const waiting: { key: string; source: string; drafts: EventDraft[] }[] = [];
-  for (const [key, group] of grouped) {
-    const saved = await store.getMeta(key);
-    let cached: { details?: unknown; retryAt?: number } = {};
-    try {
-      const value: unknown = saved ? JSON.parse(saved) : {};
-      if (value && typeof value === 'object') cached = value;
-    } catch { /* Invalid cache: re-extract. */ }
-    if (cached.details) {
-      const details = groundImportedDetails(cached.details, group.source);
-      group.drafts.forEach(d => apply(d, details));
-    } else if (!cached.retryAt || cached.retryAt <= now.getTime()) waiting.push({ key, ...group });
-  }
+  const waiting = [...grouped].map(([key, group]) => ({ key, ...group }));
   for (let offset = 0; offset < waiting.length; offset += IMPORT_BATCH_SIZE) {
-    const batch = waiting.slice(offset, offset + IMPORT_BATCH_SIZE);
-    const retry = JSON.stringify({ retryAt: now.getTime() + RETRY_MS });
-    // Persist before spending: crashes and invalid responses cannot cause an
-    // hourly re-spend loop. Capacity rejections are not provider attempts.
-    for (const item of batch) await store.setMeta(item.key, retry);
+    const batch: (typeof waiting[number] & { claim: Extract<CacheClaim, { kind: 'owned' }> })[] = [];
+    try {
+      for (const item of waiting.slice(offset, offset + IMPORT_BATCH_SIZE)) {
+        const claim = await claimImportCache(store, item.key, now.getTime());
+        if (claim.kind === 'cached') {
+          const details = groundImportedDetails(claim.details, item.source);
+          item.drafts.forEach(d => apply(d, details));
+        } else if (claim.kind === 'owned') batch.push({ ...item, claim });
+      }
+    } catch {
+      await Promise.allSettled(batch.map(item => item.claim.cancel()));
+      console.warn('Imported event enrichment coordination unavailable; retaining source-only details.');
+      break;
+    }
+    if (!batch.length) continue;
     let raw: unknown;
     try {
       raw = await completeJson([
         { role: 'system', content: PROMPT },
         { role: 'user', content: JSON.stringify(batch.map((item, id) => ({ id, source: item.source }))) },
-      ], 6000);
+      ], 6000, async () => {
+        // Persist possible spending only after model admission, and recheck
+        // ownership immediately before sending. Never pay after losing a lease.
+        for (const item of batch) {
+          if (!await item.claim.beforeAttempt()) throw new ModelLimitError('Import enrichment lease expired.');
+        }
+      });
     } catch (error) {
-      if (error instanceof ModelLimitError) {
-        for (const item of batch) await store.setMeta(item.key, '{}');
-      }
+      await Promise.allSettled(batch.map(item => error instanceof ModelLimitError
+        ? item.claim.cancel() : item.claim.finish()));
       // No raw error or source content in logs. A failed batch must not drain
       // the remaining budget by sending every other batch to an unavailable API.
       console.warn('Imported event enrichment unavailable; retaining source-only details.');
       break;
     }
     const envelope = z.object({ events: z.array(z.object({ id: z.number().int().nonnegative() }).passthrough()).max(IMPORT_BATCH_SIZE) }).safeParse(raw);
-    if (!envelope.success) break;
+    if (!envelope.success) {
+      await Promise.allSettled(batch.map(item => item.claim.finish()));
+      break;
+    }
     for (const [id, item] of batch.entries()) {
       const matches = envelope.data.events.filter(e => e.id === id);
-      if (matches.length !== 1 || !detailsSchema.safeParse(matches[0]).success) continue;
+      if (matches.length !== 1 || !detailsSchema.safeParse(matches[0]).success) {
+        await item.claim.finish().catch(() => false);
+        continue;
+      }
       const details = groundImportedDetails(matches[0], item.source);
-      await store.setMeta(item.key, JSON.stringify({ details }));
-      item.drafts.forEach(d => apply(d, details));
+      try {
+        if (await item.claim.finish(details)) item.drafts.forEach(d => apply(d, details));
+      } catch {
+        console.warn('Imported event enrichment cache unavailable; retaining source-only details.');
+      }
     }
   }
 }

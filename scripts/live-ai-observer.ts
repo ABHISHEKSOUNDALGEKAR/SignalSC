@@ -8,7 +8,7 @@ interface LiveObserverOptions {
   fetcher?: typeof fetch;
   logger?: (message: string) => void;
   sleep?: (milliseconds: number) => Promise<void>;
-  admitRetry?: () => void;
+  admitRetry?: () => void | Promise<void>;
   maxNetworkAttempts?: number;
   timeoutMs?: number;
 }
@@ -27,7 +27,7 @@ export function createLiveFetchObserver(options: LiveObserverOptions = {}) {
     const attemptsForRequest = isCompletion ? maxNetworkAttempts : 1;
 
     for (let retry = 0; retry < attemptsForRequest; retry++) {
-      if (isCompletion && retry > 0) options.admitRetry?.();
+      if (isCompletion && retry > 0) await options.admitRetry?.();
       if (isCompletion) stats.attempts++;
       try {
         response = await fetcher(input, isCompletion
