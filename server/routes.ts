@@ -3,6 +3,7 @@ import {
   createDraftRequestSchema, feedbackRequestSchema, loginRequestSchema, searchRequestSchema,
   type DraftResponse, type DraftsResponse, type EventRecord, type EventResponse, type EventsResponse, type FeedbackEntry, type FeedbackResponse, type FeedbackSummaryAvailableResponse, type HealthResponse,
   type FeedbackSummary, type OrganizerFeedbackResponse, type OrganizerSession, type PublishErrorResponse, type StoredFeedbackSummary,
+  type OversizedImportedEventsResponse,
 } from '../shared/api';
 import { clearSessionCookie, findOrganizationByCode, getSession, requireOrganizer, setSessionCookie } from './auth';
 import { extractDraft } from './extract';
@@ -14,6 +15,7 @@ import { applyPatch, missingForPublish, newId, toDraftRecord, toEventRecord } fr
 import { inWindow, search } from './search';
 import type { Store, StoredEvent } from './store';
 import { readImportHealth } from './import-health';
+import { OVERSIZED_IMPORT_UNCERTAINTY } from './import-enrichment';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const now = () => new Date().toISOString();
@@ -159,6 +161,29 @@ export function apiRouter(store: Store) {
     res.setHeader('Cache-Control', 'no-store');
     try { res.json(await readImportHealth(store)); }
     catch { res.status(503).json({ error: 'Import health is temporarily unavailable.' }); }
+  }));
+  organizer.get('/import-health/oversized', asyncRoute(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const source = req.query.source;
+    if (source !== 'engagesc' && source !== 'usc-calendar') {
+      return res.status(400).json({ error: 'Choose a valid calendar source.' });
+    }
+    try {
+      const now = Date.now();
+      const records = await store.list({ statuses: ['published'] });
+      const events: OversizedImportedEventsResponse['events'] = records
+        .filter(record => record.extractedBy === 'import' &&
+          record.data.sourceKind === source &&
+          Boolean(record.data.startsAt) &&
+          record.data.uncertainties.includes(OVERSIZED_IMPORT_UNCERTAINTY) &&
+          Date.parse(record.data.endsAt ?? record.data.startsAt ?? '') >= now)
+        .map(record => ({ id: record.id, title: record.data.title, startsAt: record.data.startsAt! }))
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.title.localeCompare(b.title));
+      const body: OversizedImportedEventsResponse = { events };
+      res.json(body);
+    } catch {
+      res.status(503).json({ error: 'Oversized listings are temporarily unavailable.' });
+    }
   }));
   const session = (res: express.Response) => res.locals.organizer as OrganizerSession;
 

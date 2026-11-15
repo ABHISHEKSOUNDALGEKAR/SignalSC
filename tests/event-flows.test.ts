@@ -13,6 +13,8 @@ delete process.env.MODEL_API_KEY;
 delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
 const { apiRouter } = await import('../server/routes');
 const { createStore } = await import('../server/store');
+const { emptyDraft } = await import('../server/extract');
+const { OVERSIZED_IMPORT_UNCERTAINTY } = await import('../server/import-enrichment');
 
 test('real HTTP organizer lifecycle, student discovery, and ownership boundaries', async t => {
   const store = createStore();
@@ -49,6 +51,7 @@ test('real HTTP organizer lifecycle, student discovery, and ownership boundaries
     assert.equal((await request('/organizer/drafts', 'POST', { text: 'Announcement' })).status, 401);
     assert.equal((await request('/organizer/events')).status, 401);
     assert.equal((await request('/organizer/import-health')).status, 401);
+    assert.equal((await request('/organizer/import-health/oversized?source=engagesc')).status, 401);
     assert.equal((await request('/import-health')).status, 404);
     assert.equal((await request('/events/missing')).status, 404);
     assert.equal((await request('/organizer/session', 'POST', { accessCode: 'wrong' })).status, 401);
@@ -164,6 +167,27 @@ test('real HTTP organizer lifecycle, student discovery, and ownership boundaries
     assert.equal((await (await request('/search', 'POST', { query: 'picnic' })).json()).noMatch, true);
     assert.match(await (await request(`/events/${id}/calendar.ics`)).text(), /STATUS:CANCELLED/);
     assert.equal((await (await request('/organizer/events', 'GET', undefined, cookieA)).json()).events[0].status, 'cancelled');
+    await store.insert({
+      id: 'public-oversized-id', status: 'published', organizationId: null, organizationName: null,
+      data: {
+        ...emptyDraft('https://feed.example/private?credential=private-feed-credential',
+          'private full source text that must never be returned'),
+        title: 'Public oversized event', startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+        endsAt: null, sourceKind: 'engagesc', uncertainties: [OVERSIZED_IMPORT_UNCERTAINTY],
+      },
+      flyerId: null, extractedBy: 'import', confirmation: 'source-imported',
+      externalId: 'private-provider-event-id', createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(), publishedAt: new Date().toISOString(),
+    });
+    const oversized = await request('/organizer/import-health/oversized?source=engagesc', 'GET', undefined, cookieA);
+    assert.equal(oversized.status, 200);
+    assert.equal(oversized.headers.get('cache-control'), 'no-store');
+    const oversizedBody = await oversized.json();
+    assert.deepEqual(oversizedBody.events.map((event: { id: string; title: string }) =>
+      ({ id: event.id, title: event.title })), [{ id: 'public-oversized-id', title: 'Public oversized event' }]);
+    assert.doesNotMatch(JSON.stringify(oversizedBody), /private full source text|private-feed-credential|private-provider-event-id|cache-hash|import-details/);
+    assert.equal((await request('/organizer/import-health/oversized?source=invalid', 'GET', undefined, cookieA)).status, 400);
+    assert.equal((await request('/organizer/import-health/oversized', 'GET', undefined, cookieA)).status, 400);
     const logout = await request('/organizer/session', 'DELETE', undefined, cookieA);
     assert.equal(logout.status, 204);
     assert.match(logout.headers.get('set-cookie')!, /Expires=Thu, 01 Jan 1970/);

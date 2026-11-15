@@ -141,6 +141,9 @@ export type ImportHealthResponse = {
   runs: ImportHealthRun[];
   feedImports: FeedImportHealth[];
 };
+export type ImportedEventSource = 'engagesc' | 'usc-calendar';
+export type OversizedImportedEvent = { id: string; title: string; startsAt: string };
+export type OversizedImportedEventsResponse = { events: OversizedImportedEvent[] };
 export type EventsResponse = { events: EventRecord[]; mode: 'live' };
 export type EventResponse = { event: EventRecord };
 export type DraftResponse = { draft: DraftRecord };

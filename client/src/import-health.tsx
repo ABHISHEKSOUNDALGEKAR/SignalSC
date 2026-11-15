@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FeedImportFailureCategory, FeedImportHealth, ImportHealthOutcome, ImportHealthResponse } from '../../shared/api';
+import type {
+  FeedImportFailureCategory, FeedImportHealth, ImportHealthOutcome, ImportHealthResponse,
+  ImportedEventSource, OversizedImportedEvent,
+} from '../../shared/api';
 import { api } from './api';
 import { dateLabel, ErrorNotice } from './common';
 import { feedHealthAlert, feedHealthAlertLabel, reconcileFeedAlerts } from './feed-alerts';
@@ -85,6 +88,9 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
       } catch { setAlertMessage('The browser could not show a notification. Check this calendar’s status below.'); }
     }
   }
+  const [oversized, setOversized] = useState<Partial<Record<ImportedEventSource, OversizedImportedEvent[]>>>({});
+  const [oversizedLoading, setOversizedLoading] = useState<ImportedEventSource | null>(null);
+  const [oversizedErrors, setOversizedErrors] = useState<Partial<Record<ImportedEventSource, string>>>({});
   async function load() {
     if (requestInFlight.current) return;
     requestInFlight.current = true;
@@ -147,6 +153,19 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
       setAlertMessage('The alert preference could not be changed. Allow site storage and try again.');
     }
   }
+  async function loadOversized(source: ImportedEventSource) {
+    setOversizedLoading(source);
+    setOversizedErrors(previous => ({ ...previous, [source]: undefined }));
+    try {
+      const result = await api.oversizedImportedEvents(source);
+      setOversized(previous => ({ ...previous, [source]: result.events }));
+    } catch (e) {
+      setOversizedErrors(previous => ({
+        ...previous,
+        [source]: e instanceof Error ? e.message : 'Oversized listings could not be loaded.',
+      }));
+    } finally { setOversizedLoading(null); }
+  }
   return <section className="form-panel" aria-labelledby="import-health-heading">
     <div className="section-head" style={{ marginTop: 0 }}>
       <h2 id="import-health-heading">Calendar import health</h2>
@@ -182,7 +201,7 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
     <h3>AI detail recovery</h3>
     <p className="event-meta">Private summary of the latest upcoming-event recovery pass per calendar, not a feed availability check.
       Counts include events sharing the same source. Unknowns can be a successful result when the source states no supported details or has conflicts.</p>
-    <p className="event-meta">Refreshing status never starts an import or paid retry. Eligible events are only reconsidered by an existing import, subject to shared AI budgets, capacity, and cache ownership. Cached successes are not retried; oversized sources need changed content.</p>
+    <p className="event-meta">Refreshing status and finding oversized listings never starts an import or paid retry. Correct an oversized listing’s public description; a later existing import will recheck it under the usual shared AI limits. Cached successes are not retried.</p>
     {error && <ErrorNotice error={error} retry={() => void load()} />}
     {data && !data.modelConfigured && <p className="inline-message">AI recovery is not configured. No paid recovery calls can run.</p>}
     {data && data.runs.length === 0 && <p>No recovery status recorded yet. The next scheduled import will record a summary.</p>}
@@ -197,6 +216,20 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
           {row.nextRetryAt && <span> · Earliest retry check: {dateLabel(row.nextRetryAt)}</span>}
           {row.outcome === 'busy' && !row.nextRetryAt && <span> · Eligibility will be checked on the next import</span>}
         </li>)}</ul>}
+      {(run.outcomes.find(row => row.outcome === 'oversized')?.count ?? 0) > 0 && <>
+        <button className="btn btn-outline" onClick={() => void loadOversized(run.source)}
+          disabled={oversizedLoading !== null}>
+          {oversizedLoading === run.source ? 'Finding listings…' : 'Find oversized listings'}
+        </button>
+        {oversizedErrors[run.source] && <p className="inline-message" role="alert">{oversizedErrors[run.source]}</p>}
+        {oversized[run.source] && (oversized[run.source]!.length === 0
+          ? <p>No matching upcoming public listings were found. The latest feed may have changed.</p>
+          : <ul aria-label="Oversized imported listings">{oversized[run.source]!.map(event =>
+            <li key={event.id}>
+              <a href={`#/event/${encodeURIComponent(event.id)}`}>{event.title}</a>
+              {' · '}{dateLabel(event.startsAt)} · ID: <code>{event.id}</code>
+            </li>)}</ul>)}
+      </>}
     </div>)}
   </section>;
 }

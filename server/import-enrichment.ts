@@ -14,6 +14,8 @@ export const IMPORT_BATCH_SIZE = 8;
 export const IMPORT_CACHE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const IMPORT_CACHE_CLEANUP_MIN = 100;
 const fields = ['food', 'beginnerFriendly', 'topics', 'costCents', 'eligibility', 'registrationUrl'] as const;
+export const OVERSIZED_IMPORT_UNCERTAINTY =
+  'Source description is too long to enrich reliably; additional details left unknown.';
 type Field = typeof fields[number];
 const detailsSchema = z.object({
   food: z.enum(['advertised', 'not-advertised', 'unknown']).catch('unknown'),
@@ -178,7 +180,7 @@ async function enrich(store: Store, inputs: Input[], now: Date, health: ReturnTy
     if (source.length > 12_000) {
       health.add('oversized', 1);
       apply(draft, unknown());
-      draft.uncertainties.push('Source description is too long to enrich reliably; additional details left unknown.');
+      draft.uncertainties.push(OVERSIZED_IMPORT_UNCERTAINTY);
       continue;
     }
     const hash = createHash('sha256').update(source).digest('hex');

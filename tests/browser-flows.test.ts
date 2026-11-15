@@ -49,6 +49,8 @@ test('organizer publishing and device-local saved-event flows work in a browser'
 
   const { apiRouter } = await import('../server/routes');
   const { createStore } = await import('../server/store');
+  const { emptyDraft } = await import('../server/extract');
+  const { OVERSIZED_IMPORT_UNCERTAINTY } = await import('../server/import-enrichment');
   const store = createStore();
   await store.init();
   const { feedImportHealthRecorder, importHealthRecorder } = await import('../server/import-health');
@@ -305,6 +307,36 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Sign out' }).click();
     await page.getByRole('heading', { name: 'Organizer sign in' }).waitFor();
+
+    await store.insert({
+      id: 'oversized-browser-public-id', status: 'published', organizationId: null, organizationName: null,
+      data: {
+        ...emptyDraft('https://feed.example/private?credential=private-feed-credential',
+          'private source body excluded from the organizer lookup'),
+        title: 'Oversized description fixture', startsAt: '2035-01-20T18:00:00.000Z',
+        endsAt: null, sourceKind: 'engagesc', uncertainties: [OVERSIZED_IMPORT_UNCERTAINTY],
+      },
+      flyerId: null, extractedBy: 'import', confirmation: 'source-imported',
+      externalId: 'private-provider-event-id', createdAt: '2035-01-01T00:00:00.000Z',
+      updatedAt: '2035-01-01T00:00:00.000Z', publishedAt: '2035-01-01T00:00:00.000Z',
+    });
+    health.add('oversized', 1);
+    await health.save();
+    await page.getByLabel('Organization access code').fill('browser-test-code');
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
+    const oversizedLookup = page.waitForResponse(response =>
+      response.url().includes('/api/organizer/import-health/oversized'));
+    await page.getByRole('button', { name: 'Find oversized listings' }).click();
+    const lookupResponse = await oversizedLookup;
+    assert.equal(lookupResponse.status(), 200);
+    const lookupBody = await lookupResponse.json() as { events: Array<Record<string, unknown>> };
+    assert.deepEqual(Object.keys(lookupBody.events[0] ?? {}).sort(), ['id', 'startsAt', 'title']);
+    assert.equal(lookupBody.events[0]?.id, 'oversized-browser-public-id');
+    assert.doesNotMatch(JSON.stringify(lookupBody), /private source body|private-feed-credential|private-provider-event-id|import-details/);
+    const oversizedLink = page.getByRole('link', { name: 'Oversized description fixture' });
+    await oversizedLink.waitFor();
+    assert.equal(await oversizedLink.getAttribute('href'), '#/event/oversized-browser-public-id');
     assert.deepEqual(pageErrors, [], `Browser console errors: ${pageErrors.join('; ')}`);
     await context.close();
   } finally {

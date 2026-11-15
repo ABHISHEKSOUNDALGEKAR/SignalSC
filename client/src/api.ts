@@ -1,6 +1,7 @@
 import type {
   DraftRecord, DraftResponse, DraftsResponse, EventRecord, EventResponse, EventsResponse,
-  ExclusionNote, ImportHealthResponse, OrganizerFeedbackResponse, OrganizerSession, PublishErrorResponse, SearchResponse, SearchRequest, StoredFeedbackSummary,
+  ExclusionNote, ImportHealthResponse, ImportedEventSource, OrganizerFeedbackResponse, OrganizerSession,
+  OversizedImportedEventsResponse, PublishErrorResponse, SearchResponse, SearchRequest, StoredFeedbackSummary,
 } from '../../shared/api';
 import type { EventDraft } from '../../shared/events';
 
@@ -37,6 +38,8 @@ export const api = {
     request<SearchResponse>('/api/search', { method: 'POST', body: JSON.stringify({ query, ...options }) }),
   session: () => request<OrganizerSession>('/api/organizer/session'),
   importHealth: () => request<ImportHealthResponse>('/api/organizer/import-health', { cache: 'no-store' }),
+  oversizedImportedEvents: (source: ImportedEventSource) =>
+    request<OversizedImportedEventsResponse>(`/api/organizer/import-health/oversized?source=${encodeURIComponent(source)}`, { cache: 'no-store' }),
   signIn: (accessCode: string) => request<OrganizerSession>('/api/organizer/session', { method: 'POST', body: JSON.stringify({ accessCode }) }),
   signOut: () => request<void>('/api/organizer/session', { method: 'DELETE' }),
   drafts: () => request<DraftsResponse>('/api/organizer/drafts'),
