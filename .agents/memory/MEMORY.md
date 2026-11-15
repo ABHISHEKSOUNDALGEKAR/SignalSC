@@ -1,1 +1,2 @@
 - [AI provider approval](ai-provider.md) — BluesMinds was explicitly approved; keep synthetic live checks separate from automatic tests.
+- [Firefox mobile test limits](firefox-mobile-testing.md) — Playwright's Linux Firefox engine supports narrow viewports but does not expose mobile touch capability.
