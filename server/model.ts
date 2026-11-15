@@ -4,6 +4,7 @@ import { ModelBudget, ModelCapacityError, readModelLimit } from './model-budget'
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createStore } from './store';
 import { SharedModelBudget, type ModelAdmission } from './shared-model-budget';
+import { recordModelOperation } from './model-operations';
 
 type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 export type ChatMessage = { role: 'system' | 'user'; content: string | ContentPart[] };
@@ -33,11 +34,15 @@ const admissionContext = new AsyncLocalStorage<ModelAdmission>();
 export async function reserveModelRetryAttempt(): Promise<void> {
   try {
     const admission = admissionContext.getStore();
-    if (!admission) throw new ModelCapacityError('No active model admission.');
+    if (!admission) throw new ModelCapacityError('No active model admission.', 'no_active_admission');
     await admission.recordAttempt();
   }
   catch (error) {
-    if (error instanceof ModelCapacityError) throw new ModelLimitError(error.message);
+    if (error instanceof ModelCapacityError) {
+      recordModelOperation('model_admission_rejected');
+      throw new ModelLimitError(error.message);
+    }
+    recordModelOperation('model_admission_unavailable');
     throw new ModelUnavailableError('Model admission is unavailable.');
   }
 }
@@ -46,7 +51,10 @@ export async function reserveModelRetryAttempt(): Promise<void> {
 export async function completeJson(
   messages: ChatMessage[], maxTokens = 1500, beforeAttempt?: () => Promise<void>,
 ): Promise<unknown> {
-  if (!modelConfigured) throw new ModelUnavailableError('Model is not configured.');
+  if (!modelConfigured) {
+    recordModelOperation('model_unconfigured');
+    throw new ModelUnavailableError('Model is not configured.');
+  }
   let admission: ModelAdmission;
   try {
     if (sharedBudget) admission = await sharedBudget.acquire();
@@ -56,7 +64,11 @@ export async function completeJson(
     }
   }
   catch (error) {
-    if (error instanceof ModelCapacityError) throw new ModelLimitError(error.message);
+    if (error instanceof ModelCapacityError) {
+      recordModelOperation('model_admission_rejected');
+      throw new ModelLimitError(error.message);
+    }
+    recordModelOperation('model_admission_unavailable');
     throw new ModelUnavailableError('Model admission is unavailable.');
   }
   return admissionContext.run(admission, async () => {
@@ -85,20 +97,31 @@ export async function completeJson(
     });
     if (!response.ok) {
       // Provider bodies can echo credentials or flyer text. Do not put them in logs.
+      recordModelOperation('model_provider_http_failure');
       throw new ModelUnavailableError(`Model request failed (HTTP ${response.status}). Check provider access, credits, and availability.`);
     }
     const body = await response.json() as { choices?: { message?: { content?: string } }[] };
     const text = body.choices?.[0]?.message?.content ?? '';
     return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ''));
   } catch (error) {
+    if (controller.signal.aborted) {
+      recordModelOperation('model_provider_timeout');
+      throw new ModelUnavailableError('Model request timed out.');
+    }
     if (error instanceof ModelUnavailableError) throw error;
-    throw new ModelUnavailableError(controller.signal.aborted
-      ? 'Model request timed out.'
-      : 'Model returned an invalid response or could not be reached.');
+    if (error instanceof SyntaxError) {
+      recordModelOperation('model_response_invalid_or_unreachable');
+      throw new ModelUnavailableError('Model returned an invalid response or could not be reached.');
+    }
+    recordModelOperation('model_request_failed');
+    throw new ModelUnavailableError('Model returned an invalid response or could not be reached.');
   } finally {
     clearTimeout(timer);
     try { await admission.release(); }
-    catch { console.warn('Model admission release unavailable; slot will expire.'); }
+    catch {
+      recordModelOperation('model_slot_release_unavailable');
+      console.warn('Model admission release unavailable; slot will expire.');
+    }
   }
   });
 }

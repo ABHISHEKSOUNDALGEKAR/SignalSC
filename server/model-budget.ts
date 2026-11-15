@@ -1,5 +1,17 @@
 // Database-free development/test gate. PostgreSQL deployments use SharedModelBudget.
-export class ModelCapacityError extends Error {}
+export type ModelCapacityReason =
+  | 'request_budget_exhausted'
+  | 'concurrency_limit_reached'
+  | 'replica_settings_mismatch'
+  | 'coordination_contention'
+  | 'slot_expired'
+  | 'no_active_admission';
+
+export class ModelCapacityError extends Error {
+  constructor(message: string, readonly reason: ModelCapacityReason) {
+    super(message);
+  }
+}
 
 export function readModelLimit(name: string, fallback: number, minimum: number): number {
   const raw = process.env[name];
@@ -33,15 +45,21 @@ export class ModelBudget {
 
   private reserveRequest(now: number) {
     this.resetWindow(now);
-    if (this.used >= this.requests) throw new ModelCapacityError('Model request budget is exhausted.');
+    if (this.used >= this.requests) {
+      throw new ModelCapacityError('Model request budget is exhausted.', 'request_budget_exhausted');
+    }
     this.used++;
   }
 
   acquire(): () => void {
     const now = this.clock();
     this.resetWindow(now);
-    if (this.used >= this.requests) throw new ModelCapacityError('Model request budget is exhausted.');
-    if (this.active >= this.concurrency) throw new ModelCapacityError('Model concurrency limit is reached.');
+    if (this.used >= this.requests) {
+      throw new ModelCapacityError('Model request budget is exhausted.', 'request_budget_exhausted');
+    }
+    if (this.active >= this.concurrency) {
+      throw new ModelCapacityError('Model concurrency limit is reached.', 'concurrency_limit_reached');
+    }
     // Reserve synchronously, before fetch can yield. Failed provider attempts
     // still count: they may have incurred charges. Rejected admissions do not.
     this.used++;

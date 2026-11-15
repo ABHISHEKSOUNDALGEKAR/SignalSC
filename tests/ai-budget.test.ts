@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import express from 'express';
 import { ModelBudget, ModelCapacityError, readModelLimit } from '../server/model-budget';
+import { getModelOperationCounters } from '../server/model-operations';
 
 // Isolated process: synthetic credentials, mocked provider, no app database.
 process.env.MODEL_API_KEY = 'test-only';
@@ -139,10 +140,13 @@ test('fallback logs contain neither provider bodies nor source content', async t
   const logs: string[] = [];
   t.mock.method(console, 'warn', (...args: unknown[]) => { logs.push(args.join(' ')); });
   globalThis.fetch = async () => new Response('private-provider-body test-only', { status: 503 });
+  const before = getModelOperationCounters();
   const result = await search('private-source-content', [], now);
   assert.equal(result.fallbackReason, 'unavailable');
   assert.match(result.answer, /basic search matching/);
-  assert.equal(logs.length, 1);
+  assert.equal(logs.length, 2);
+  assert.ok(logs.some(line => line.includes('model_provider_http_failure')));
+  assert.equal(getModelOperationCounters().model_provider_http_failure - before.model_provider_http_failure, 1);
   assert.doesNotMatch(logs.join(' '), /private-provider-body|private-source-content|test-only/);
 });
 
