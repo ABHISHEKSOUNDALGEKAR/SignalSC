@@ -11,6 +11,7 @@ export function toDraftRecord(r: StoredEvent): DraftRecord {
   return {
     id: r.id, status: 'draft', draft: r.data, organizationName: r.organizationName ?? '',
     flyerUrl: flyerUrl(r.flyerId), extractedBy: r.extractedBy === 'model' ? 'model' : 'manual',
+    suggestions: r.suggestions ?? [],
     createdAt: r.createdAt, updatedAt: r.updatedAt,
   };
 }
