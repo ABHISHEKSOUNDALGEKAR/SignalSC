@@ -96,3 +96,12 @@ test('model ranking changes only the order of provided events and ignores invent
   const response = await search('events this week', [event(), event({ id: 'second', title: 'Art Social' })], now);
   assert.deepEqual(response.results.map(r => r.event.id), ['second', 'food-event']);
 });
+
+test('a near-campus question says when results do not list a location', async () => {
+  fixture({ keywords: [], freeOnly: false, foodAdvertisedOnly: true, dateFrom: '2026-11-15', dateTo: '2026-11-22', afterTime: '00:00' });
+  const hidden = await search('food events near campus this week', [event({ location: null })], now);
+  assert.match(hidden.answer, /None of these list a location publicly/);
+  fixture({ keywords: [], freeOnly: false, foodAdvertisedOnly: true, dateFrom: '2026-11-15', dateTo: '2026-11-22', afterTime: '00:00' });
+  const placed = await search('food events near campus this week', [event({ location: 'Ginsburg Hall 101' })], now);
+  assert.doesNotMatch(placed.answer, /list a location/);
+});

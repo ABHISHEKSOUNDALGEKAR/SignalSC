@@ -286,7 +286,7 @@ Use ONLY the events provided. Do not add events, facts, times, or links that are
 Return JSON: {"answer": "1-2 friendly sentences summarizing the options", "rankedIds": ["<most relevant event id>", "..."], "reasons": [{"id": "<event id>", "reason": "one short line on why it fits the question, citing only provided facts"}]}.
 Rank by relevance to the student's interests, not just keyword overlap. Never add IDs.
 The matchType and differences supplied by the app are authoritative. Related suggestions do NOT match all requested details: explain the differences, never call them exact matches.
-If a detail is null, it is unknown: do not claim it. Food advertised does not prove food is free. Unknown admission cost does not mean paid admission, and does not prevent food being advertised.`;
+If a detail is null, it is unknown: do not claim it. If location is null, never say the event is on campus, nearby or at any place. When a claim such as free food comes only from an event's own description, say the event says so. Food advertised does not prove food is free. Unknown admission cost does not mean paid admission, and does not prevent food being advertised.`;
 
 async function writeAnswer(query: string, results: EventRecord[], related: SearchResult[] = []): Promise<{ answer: string; reasons: Map<string, string>; rankedIds: string[] } | null> {
   const differences = new Map(related.map(r => [r.event.id, r.differences]));
@@ -394,5 +394,10 @@ export async function search(query: string, events: EventRecord[], now = new Dat
     .sort((a, b) => rank(a.event.id) - rank(b.event.id));
   if (!top.length) relatedResults.sort((a, b) => rank(a.event.id) - rank(b.event.id));
   if (constraints.foodAdvertisedOnly) answer += ' Food advertised does not confirm food is free; check the event source.';
+  const unplaced = top.filter(e => !e.location).length;
+  if (unplaced && /\b(campus|near|nearby|close|walk|around)\b/i.test(query))
+    answer += unplaced === top.length
+      ? ' None of these list a location publicly; open each event to check where it is.'
+      : ` ${unplaced} of these ${unplaced === 1 ? 'does' : 'do'} not list a location publicly; open the event to check where it is.`;
   return { answer: disclose(answer), constraints, constraintSummary, results, relatedResults, excluded, noMatch: !top.length, interpretedBy, fallbackReason, refinementApplied };
 }
