@@ -10,11 +10,12 @@
     "test:ai": "node --import tsx --test tests/ai-*.test.ts",
     "test:ai:live": "node --import tsx --env-file-if-exists=.env scripts/verify-ai-live.ts",
     "test:browser": "node --import tsx --test tests/browser-flows.test.ts",
+    "audit:deps": "npm audit --audit-level=high",
     "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite --host 0.0.0.0",
     "dev:server": "tsx watch --env-file-if-exists=.env server/index.ts",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
+    "build": "npm run audit:deps && npm run typecheck && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "import:engagesc": "tsx --env-file-if-exists=.env server/import-engagesc.ts"
   },
