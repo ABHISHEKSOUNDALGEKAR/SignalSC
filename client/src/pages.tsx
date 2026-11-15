@@ -24,7 +24,7 @@ export function AskPage() {
   const announcement = loading ? 'Searching for events…'
     : result ? `${result.answer} ${result.noMatch || result.results.length === 0 ? 'No events matched.' : result.results.length === 1 ? '1 event found.' : `${result.results.length} events found.`}`
       : '';
-  return <main className="page">
+  return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero">
       <div className="eyebrow">Trojan Signal · Find your people</div>
       <h1>Ask what’s<br />happening.</h1>
@@ -86,7 +86,7 @@ export function DiscoverPage() {
   };
   useEffect(reload, [today, week, free, food]);
   const grouped = dateGroups(events);
-  return <main className="page">
+  return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero"><div className="eyebrow">Around University Park</div><h1>Make room<br />for a good plan.</h1><p className="lede">Student-run, campus-connected, and clear about what’s known. Browse what’s coming up in Los Angeles.</p><div className="hero-rule" /></section>
     <div className="filters" aria-label="Filter events">
       <button className={`filter-chip ${today ? 'selected' : ''}`} aria-pressed={today} onClick={() => { setToday(!today); if (!today) setWeek(false); }}>LA Today</button>
@@ -111,8 +111,8 @@ export function EventDetailPage({ id }: { id: string }) {
     api.event(id).then(data => setEvent(data.event)).catch(e => setError(e instanceof Error ? e.message : 'Event could not be found.')).finally(() => setLoading(false));
   };
   useEffect(() => { reload(); const ids = readSaved(); setSaved(ids?.includes(id) ?? false); }, [id]);
-  if (loading) return <main className="page"><LoadingList count={2} /></main>;
-  if (!event) return <main className="page"><a className="nav-link" href="#/discover">← Discover</a><ErrorNotice error={error || 'This event is no longer available.'} retry={reload} /></main>;
+  if (loading) return <main id="main-content" tabIndex={-1} className="page"><LoadingList count={2} /></main>;
+  if (!event) return <main id="main-content" tabIndex={-1} className="page"><a className="nav-link" href="#/discover">← Discover</a><ErrorNotice error={error || 'This event is no longer available.'} retry={reload} /></main>;
   const foodText = event.food === 'advertised' ? 'Advertised' : event.food === 'not-advertised' ? 'Not advertised' : 'Not listed';
   function toggleSaved() {
     const ids = readSaved();
@@ -125,7 +125,7 @@ export function EventDetailPage({ id }: { id: string }) {
       localStorage.setItem('trojan-signal-saved', JSON.stringify(next)); setSaved(!saved); setSaveError('');
     } catch { setSaveError('This browser could not save the event. Allow site storage and try again.'); }
   }
-  return <main className="page">
+  return <main id="main-content" tabIndex={-1} className="page">
     <a href="#/discover" className="nav-link" style={{ paddingLeft: 0 }}>← Back to Discover</a>
     <section className="detail-hero"><div className="eyebrow">{event.organizationName?.trim() || 'Organizer not listed'} · {event.status === 'cancelled' ? 'Notice' : 'Event details'}</div><h1>{event.title}</h1><div className="detail-meta">{dateLabel(event.startsAt, 'Time not listed')}{event.endsAt ? ` — ${dateLabel(event.endsAt)}` : ''}<br />{locationLabel(event)} · {money(event.costCents)}</div>
       <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`} aria-describedby={event.endsAt ? undefined : 'calendar-note'}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
@@ -183,7 +183,7 @@ export function SavedPage() {
     setEvents(found); setMissing(absent); setLoading(false);
   };
   useEffect(() => { void reload(); }, []);
-  return <main className="page"><section className="hero"><div className="eyebrow">Your list, on this device</div><h1>Keep the plans<br />you like.</h1><p className="lede">Saved events are stored in this browser and refreshed from the event source every time you visit.</p><div className="hero-rule" /></section>
+  return <main id="main-content" tabIndex={-1} className="page"><section className="hero"><div className="eyebrow">Your list, on this device</div><h1>Keep the plans<br />you like.</h1><p className="lede">Saved events are stored in this browser and refreshed from the event source every time you visit.</p><div className="hero-rule" /></section>
     {error && <ErrorNotice error={error} retry={() => void reload()} />}
     {storageUnavailable && <div className="inline-message" role="alert">This browser could not read your saved events. Allow site storage in your browser settings and try again.</div>}
     {loading ? <LoadingList /> : storageUnavailable ? null : events.length === 0 && missing.length === 0 ? <EmptyState title="Nothing saved just yet">Save an event you want to remember and it’ll be waiting here.</EmptyState> :

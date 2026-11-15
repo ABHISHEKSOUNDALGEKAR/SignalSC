@@ -234,14 +234,14 @@ export function OrganizerPage() {
     catch (e) { setDataError(e instanceof Error ? e.message : 'Could not update event status.'); }
   }
 
-  if (checking) return <main className="page organizer-wrap"><div className="hero"><div className="eyebrow">Organizer desk</div><h1>Your events,<br />in good hands.</h1></div><LoadingList count={2} /></main>;
-  if (!session) return <main className="page organizer-wrap">
+  if (checking) return <main id="main-content" tabIndex={-1} className="page organizer-wrap"><div className="hero"><div className="eyebrow">Organizer desk</div><h1>Your events,<br />in good hands.</h1></div><LoadingList count={2} /></main>;
+  if (!session) return <main id="main-content" tabIndex={-1} className="page organizer-wrap">
     <section className="hero"><div className="eyebrow">For the people who make campus happen</div><h1>Turn a flyer<br />into a plan.</h1><p className="lede">Sign in with your organization’s access code to review event details, then publish what students can trust.</p><div className="hero-rule" /></section>
     <div className="content-grid"><form className="form-panel" onSubmit={signIn}><h2>Organizer sign in</h2><p className="event-meta">This private workspace is for verified campus organizers.</p><div className="field"><label htmlFor="access-code">Organization access code</label><input id="access-code" autoComplete="current-password" value={accessCode} onChange={e => setAccessCode(e.target.value)} required /></div>{signinError && <div className="inline-message" role="alert">{signinError}</div>}<button className="btn btn-primary" disabled={signing}>{signing ? 'Checking code…' : 'Continue'}</button></form>
       <aside className="side-note"><div className="mini-star">✦</div><h3>People are planning around this.</h3><p>Review every extracted detail. Uncertain fields stay highlighted, and source evidence stays right beside the form.</p></aside></div>
   </main>;
 
-  return <main className="page organizer-wrap">
+  return <main id="main-content" tabIndex={-1} className="page organizer-wrap">
     <div className="organizer-intro"><div><div className="eyebrow">Organizer desk · Private workspace</div><h1 style={{ fontSize: 'clamp(38px,6vw,66px)' }}>Good to see you,<br />{session.organizationName}.</h1><p className="lede">Review the details, keep unknowns honest, then put the event on the map.</p></div><button className="btn btn-outline" disabled={uploading || saveBusy || publishBusy} onClick={() => void signOut()}>Sign out</button></div>
     {dataError && <ErrorNotice error={dataError} retry={() => void loadOrganizerData()} />}
     {!selected && !editEvent && <>
