@@ -162,16 +162,17 @@ export async function importFeed(store: Store, url: string, now = new Date()): P
 // Refreshes the feed on start and hourly while the server is awake. The timestamp is stored
 // so several instances (or quick restarts) do not all fetch the feed.
 export function scheduleFeedImport(store: Store, url: string) {
+  const metaKey = `${META_KEY}:${url}`;
   const run = async () => {
     try {
-      const last = await store.getMeta(META_KEY);
+      const last = await store.getMeta(metaKey);
       if (last && Date.now() - Date.parse(last) < REFRESH_MS) return;
-      await store.setMeta(META_KEY, new Date().toISOString());
+      await store.setMeta(metaKey, new Date().toISOString());
       try {
         const r = await importFeed(store, url);
-        console.log(`Feed import: ${r.inserted} new, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped} skipped.`);
+        console.log(`Feed import (${url}): ${r.inserted} new, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped} skipped.`);
       } catch (error) {
-        await store.setMeta(META_KEY, new Date(0).toISOString()); // retry on the next cycle
+        await store.setMeta(metaKey, new Date(0).toISOString()); // retry on the next cycle
         throw error;
       }
     } catch {

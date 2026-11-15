@@ -62,7 +62,7 @@ rules when its model request fails. Provider response bodies are not logged.
 
 **Client (`client/`)**: implemented. Ask, Discover with date and filter chips, event detail with source links and calendar download, device-local Saved events, and the organizer workspace for upload, review, publish, edit and cancel. Installable on a phone through the web manifest.
 
-**Data**: public EngageSC events are imported automatically and labeled as source-imported. Organizer-published events are labeled as organizer confirmed. Most EngageSC locations are only shown after USC sign-in, so those events link back to EngageSC for the location.
+**Data**: public events are imported automatically from two USC sources, the EngageSC school-wide feed and USC's public calendar (calendar.usc.edu), and labeled as source-imported. Organizer-published events are labeled as organizer confirmed. EngageSC shows most locations only after USC sign-in, so those events link back to EngageSC for the location; USC calendar events usually include the building.
 
 Not included yet: student accounts, email or SMS delivery, calendar synchronization, and moderated community posts.
 
