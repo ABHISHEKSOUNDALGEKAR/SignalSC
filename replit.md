@@ -13,6 +13,8 @@
 
 ## Configuration and current limitations
 
+- Import setup was verified with the running preview and `/api/health`: PostgreSQL is connected (`mode: live`), the public feed imports events, and no model key is configured. The production build, 33 server tests, and 24 simulated AI tests passed. No live AI requests were made.
+
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
 - Development organizer access defaults to the demo codes documented in `.env.example`. Configure private `ORGANIZER_ACCESS_CODES` before real use; production has no demo-code fallback.
