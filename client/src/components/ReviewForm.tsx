@@ -64,7 +64,7 @@ export function ReviewForm({ record, busy, error, originalText, onSave, onClose 
     </>);
   }
   return <section className="panel organizer-review" aria-labelledby="review-heading">
-    <h2 id="review-heading">{isDraft ? 'Review draft' : 'Edit event'}</h2>
+    <h2 id="review-heading" tabIndex={-1}>{isDraft ? 'Review draft' : 'Edit event'}</h2>
     <p>All date and time inputs use Los Angeles time. Blank optional fields mean Unknown; enter 0 for free admission.</p>
     <p className="filter-note">Source: {sourceLabel(draft.sourceKind)} · {draft.timezone}. Evidence is retained from the source.</p>
     {'extractedBy' in record && record.extractedBy === 'manual' && <p className="notice">Automatic extraction was unavailable. Fill in the details manually, using the source.</p>}
@@ -87,7 +87,7 @@ export function ReviewForm({ record, busy, error, originalText, onSave, onClose 
         {isDraft && <button className="button" type="button" onClick={() => submit(true)}>Save and publish</button>}
         <button className="button button-secondary" type="button" onClick={onClose}>Close review</button>
       </div></fieldset>
-      {busy && <p role="status">Saving your changes…</p>}
+      {busy && <p role="status">Working on your request…</p>}
     </form>
     {draft.evidence.length > 0 && <details><summary>All source evidence</summary><dl>{draft.evidence.map((item, i) => <React.Fragment key={i}><dt>{item.field}</dt><dd>{item.excerpt}</dd></React.Fragment>)}</dl></details>}
   </section>;
@@ -97,6 +97,6 @@ function ReviewSource({ flyerUrl, text }: { flyerUrl: string | null; text?: stri
   const [failed, setFailed] = useState(false);
   return <aside className="review-source"><h3>Review against the source</h3>
     {flyerUrl?.startsWith('/api/flyers/') && !failed ? <img className="flyer" src={flyerUrl} alt="Uploaded event flyer; extracted evidence is shown beside the form fields." onError={() => setFailed(true)} /> : <p>{failed ? 'The flyer could not be loaded. Use the evidence below or try reopening the draft.' : 'No flyer image attached.'}</p>}
-    {text && <><h4>Submitted announcement</h4><pre className="announcement-preview">{text}</pre></>}
+    {text && <><h4 id="announcement-heading">Submitted announcement</h4><pre className="announcement-preview" tabIndex={0} role="region" aria-labelledby="announcement-heading">{text}</pre></>}
   </aside>;
 }

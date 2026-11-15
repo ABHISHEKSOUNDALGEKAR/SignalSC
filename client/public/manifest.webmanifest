@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Trojan Signal",
+  "short_name": "Signal",
+  "description": "Find USC campus events with source-linked details.",
+  "lang": "en",
+  "start_url": "/#discover",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#990000",
+  "background_color": "#faf7f1",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

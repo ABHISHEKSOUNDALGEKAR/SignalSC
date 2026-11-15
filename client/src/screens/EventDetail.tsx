@@ -50,14 +50,14 @@ function LoadedDetail({ id }: { id: string }) {
   const { state, retry } = useResource(load);
   if (state.status === 'loading') return <LoadingState message="Loading event details…" />;
   if (state.status === 'error') {
-    if (state.error instanceof ApiError && state.error.status === 404) return <EmptyState title="This event is unavailable">It may have been removed or the link may be incorrect. Return to Discover to find another event.</EmptyState>;
-    return <ErrorState error={state.error} onRetry={retry} />;
+    if (state.error instanceof ApiError && state.error.status === 404) return <EmptyState headingLevel={2} title="This event is unavailable">It may have been removed or the link may be incorrect. Return to Discover to find another event.</EmptyState>;
+    return <ErrorState headingLevel={2} error={state.error} onRetry={retry} />;
   }
   return <EventInformation event={state.data.event} />;
 }
 
 export function EventDetail({ id, backHref }: { id?: string; backHref: string }) {
   return <section className="panel event-detail"><a className="text-link" href={backHref}>← Back to browsing</a>
-    {id ? <LoadedDetail key={id} id={id} /> : <EmptyState title="Choose an event">Open an event in Discover to see its details.</EmptyState>}
+    {id ? <LoadedDetail key={id} id={id} /> : <EmptyState headingLevel={2} title="Choose an event">Open an event in Discover to see its details.</EmptyState>}
   </section>;
 }

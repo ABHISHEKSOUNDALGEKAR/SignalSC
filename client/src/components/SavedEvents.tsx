@@ -24,7 +24,7 @@ export function useSavedEvents() {
 export function SaveButton({ id, title }: { id: string; title: string }) {
   const { ids, setSaved } = useSavedEvents();
   const saved = ids.includes(id);
-  return <button type="button" className="button button-secondary save-button" aria-pressed={saved} aria-label={`${saved ? 'Unsave' : 'Save'} ${title}`} onClick={() => setSaved(id, !saved)}>{saved ? 'Unsave' : 'Save'}</button>;
+  return <button type="button" className="button button-secondary save-button" data-remove-saved={saved || undefined} aria-pressed={saved} aria-label={`${saved ? 'Unsave' : 'Save'} ${title}`} onClick={() => setSaved(id, !saved)}>{saved ? 'Unsave' : 'Save'}</button>;
 }
 
 export function SavedStorageNotice() {

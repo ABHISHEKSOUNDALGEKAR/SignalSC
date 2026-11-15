@@ -140,14 +140,16 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 ## Step 6 — Phone usability, accessibility, and PWA manifest
 
-- [ ] Check all screens at narrow phone widths, tablet widths, and desktop widths. Include long titles, URLs, and evidence excerpts; eliminate horizontal scrolling.
-- [ ] Provide at least 44px tap targets, visible focus, readable contrast, semantic buttons/links, explicit form labels, and accessible status/error messages.
+- [x] Check all screens at narrow phone widths, tablet widths, and desktop widths. Include long titles, URLs, and evidence excerpts; eliminate horizontal scrolling.
+- [x] Provide at least 44px tap targets, visible focus, readable contrast, semantic buttons/links, explicit form labels, and accessible status/error messages.
 - [ ] Verify keyboard navigation, focus handling after navigation/dialogs, and appropriate busy/disabled states.
-- [ ] Include loading, empty, error, and retry/recovery behavior in every data-dependent flow; never leave a failed action looking successful.
-- [ ] Add a linked web app manifest with app names, suitable icons, start URL, display mode, theme color, and background color. Put public assets where Vite includes them in the build, such as `client/public/`.
-- [ ] Verify the manifest and icons load in the production build. A manifest does not establish offline support or universal installability; report only behavior actually verified. Offline caching and service workers are outside the assigned manifest requirement unless separately agreed.
+- [x] Include loading, empty, error, and retry/recovery behavior in every data-dependent flow; never leave a failed action looking successful.
+- [x] Add a linked web app manifest with app names, suitable icons, start URL, display mode, theme color, and background color. Put public assets where Vite includes them in the build, such as `client/public/`.
+- [x] Verify the manifest and icons load in the production build. A manifest does not establish offline support or universal installability; report only behavior actually verified. Offline caching and service workers are outside the assigned manifest requirement unless separately agreed.
 
 **Done when:** the complete workflow is usable with touch and keyboard, layouts remain readable without horizontal overflow, and production serves a valid manifest and its assets.
+
+**Step 6 implementation recorded:** responsive wrapping and minimum control/link sizes; readable contrast and focus; route titles and browsing focus recovery; focus after removing saves, reviewing, and cancelling; accessible organizer errors/busy states; linked manifest with regular, maskable, and Apple icons. See the Step 6 run in `tests.md` for evidence. **Verification gate remains INCOMPLETE:** final keyboard/auth and successful retry rechecks plus the full production refresh matrix were interrupted when the browser automation window became unavailable. The keyboard verification checkbox stays open. Screen-reader speech testing is NOT RUN. Step 7 has not started. Stop here until instructed.
 
 ## Step 7 — Integration and acceptance checks
 

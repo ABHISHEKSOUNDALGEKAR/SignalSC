@@ -30,7 +30,8 @@ Record configured automated test commands here when implemented:
 
 - Unit: `node --import tsx --test client/tests/*.test.tsx` — Node's built-in test runner with the existing `tsx` dependency; no package changes needed. There is still no `npm test` script.
 - Component/integration: the same command includes static React rendering checks for shared states. These do not simulate mounted interactions; use browser checks for those until a DOM interaction runner is configured.
-- Browser automation: **Not configured; recorded manual/native browser checks used for Step 1.**
+- Browser automation: **No repository browser runner configured; native Chrome checks are recorded in the per-step reports.**
+- Production assets (after `npm run build` and `PORT=3002 npm start`): `node --import tsx --test client/tests/production-assets.test.ts`. This deliberately sits outside the unit glob and requires loopback HTTP access.
 
 ## Shared fixture set
 
@@ -433,3 +434,43 @@ Completion gate: PASS or INCOMPLETE
 **Reproduction / handoff:** run the normal local API in disposable memory mode without a model key and Vite on 5174 before the explicit live-test command. Its synthetic topic for this run was `savedstepfive1794713083371`; browser fixture ID `96ccb99d-ea2b-4532-a4b6-7e5b40f6360f` was intentionally edited/cancelled during UI checks. The script leaves labeled memory-only records for verification; they disappear on backend restart. Do not use it against real organizer data. The standard `.test.tsx` suite needs no running backend. Sandbox networking initially blocked the live command; rerunning outside the sandbox passed.
 
 **Completion gate: PASS for Step 5.** Earlier Step 2/4 save dependencies are now checked off. Phone/browser/assistive-technology coverage beyond the checks above and the PWA manifest remain Step 6 or later. No Step 6 feature work was performed; stop here until instructed.
+
+
+## Step 6 run — phone usability, accessibility, and manifest
+
+**Date/state:** 2026-11-14, `frontend-stuff`, uncommitted working tree. Step 6 only; Step 7 remains unstarted.
+
+**Environment:** native Google Chrome on macOS; responsive emulation at 320, 390, 768, and 1280 CSS pixels, plus browser zoom visibly reporting 200%. This was browser emulation, not a physical phone test. Dates remain in Los Angeles time. The compiled client ran against the real API router with disposable synthetic memory records on port 3003. The standard `npm start` server ran separately on port 3002 in local memory mode; this does not establish deployed production readiness.
+
+### Automated checks — PASS
+
+- `npm run build`: typecheck, Vite client build, and server bundle passed after the final changes.
+- `node --import tsx --test --test-reporter=spec client/tests/*.test.tsx`: **66 passed, 0 failed**. Includes the earlier date, API, organizer, search, and saved-store regressions; three added checks cover manifest/PNG metadata, measured contrast, and detail-state heading/recovery semantics. Static React rendering does not prove mounted keyboard interactions.
+- `PORT=3002 npm start`, then `node --import tsx --test client/tests/production-assets.test.ts`: **1 passed, 0 failed** against the final build. HTML links the manifest; manifest MIME is `application/manifest+json`; all declared icons and the Apple icon return actual PNG bytes at their declared dimensions; compiled JS/CSS and the manifest start URL return the expected resources.
+- Manifest: `Trojan Signal` / `Signal`, `/#discover`, scope and ID `/`, standalone display, cardinal theme and cream background. Icons are 192×192, 512×512, maskable 512×512, and Apple 180×180. Pixel inspection confirmed the maskable image is fully opaque and its T sits within the central 80% safe circle. `client/scripts/generate-icons.py` regenerates the existing favicon design with Pillow; no application dependency was added.
+- Contrast measured with the WCAG relative-luminance formula: body text on cream **14.54:1**; muted text on the yellow notice background **5.59:1**; cardinal on white **8.92:1**; badge text **6.49:1**. Focus and input boundaries on yellow are **4.64:1** and **3.80:1**. All tested active text pairs exceed 4.5:1 and boundaries exceed 3:1. Disabled controls are visibly disabled; status/food/error meaning also appears in text.
+- `git diff --check`: passed.
+
+### Browser/layout checks — observed passes
+
+- Inspected Discover, Ask, Saved, detail, and organizer/review layouts across the required representative widths. Long synthetic titles, a long source URL, lengthy field evidence, and an unbroken evidence token wrapped in the inspected views. Date/time inputs fit at 320px; two-column review fields fit at tablet/desktop widths. No page overflow was observed in the correctly sized previews. During resizing, intermediate accidental tiny viewport values distorted Chrome's emulation; exact sizes were reselected and inspected.
+- Links, buttons, filters, form fields, summaries, and the native file selector have minimum 44px target rules; inline links now get the same minimum. Narrow layouts wrap controls without hiding horizontal overflow to conceal problems.
+- At 320px, keyboard navigation reached search, submitted a query, and returned a matching long-title card. Saving propagated to Saved. Keyboard Unsave removed the card and focused the Saved heading. The focus ring was visibly present.
+- Invalid organizer sign-in returned focus to the access-code field. The field now references its error and reports invalid state. A successful sign-in opened the workspace; opening review focused its heading. Keyboard submission saved a draft. The real API accepted publication of `synthetic-review`; the old preview tab stalled before its final UI completion could be reliably inspected, so that final focus case remains open below.
+- Cancellation initially focuses Keep event. Escape dismissed it and restored the Cancel event trigger. Keyboard confirmation cancelled a disposable event. After fixing a list-refresh focus loss, a delayed cancellation at 320px focused the stable Drafts and my events heading while the records reloaded.
+- Fixture mode `slow` imposed two-second delays per API request. Session/list loading and eventual completion were observed. Busy review controls were disabled and announced pending work; the existing TaskGate regression also passed its single-flight/late-result checks.
+- Fixture mode `error` returned real 503 responses. The app displayed the supplied failure and Try again rather than successful content. At 200% zoom the error text, filters, and retry control remained readable and usable. The final retry after restoring normal responses could not be verified before the browser connection failed.
+- Native accessibility trees exposed meaningful labels, headings, navigation links, pressed saved/filter controls, and status/error text. Detail empty/error states now use h2 under the page h1. The announcement preview can receive keyboard focus for scrolling. These observations are not a screen-reader speech test.
+- The standard built app opened all five hash destinations, including an unavailable detail ID. HTTP verified the manifest start resource. A complete reload-at-each-hash browser matrix is still pending below.
+
+### Fixes and remaining verification
+
+Implemented focus recovery for navigation, unsaving, review close, completed mutations, and cancellation; associated organizer errors and busy states; expanded tap targets and wrapping; added route-specific document titles and PWA assets. The cancellation focus fix was rechecked successfully. A final adjustment waits until authentication controls are enabled before focusing the sign-in/out result; typecheck/build and automated checks pass, but that final mounted interaction has not been rechecked.
+
+**BLOCKED browser rechecks:** final sign-in/out focus, review close/publish completion and detail/back focus, successful retry after restoring normal responses, and reload at each production hash route. The native browser session developed stalled/inconsistent preview observations; a fresh tab allowed cancellation and zoom checks to continue, then the final action failed with `noWindowsAvailable`. Do not mark these cases passed from static rendering or HTTP alone. Recheck these cases with a working browser before closing Step 6's gate.
+
+**NOT RUN:** screen-reader speech validation (unavailable through this session's tools), an automated accessibility scanner (not configured), physical iOS/Android testing, and app installation. No service worker or offline caching was added; offline support and installability are not claimed.
+
+**Evidence/reproduction:** native browser observations in this session; disposable IDs `synthetic-phone` and `synthetic-review`; `client/tests/serve-step6-fixtures.ts` serves the built app and real API router with explicit `/__fixture/normal`, `/__fixture/slow`, and `/__fixture/error` test switches. It is never imported by the application or production server. No screenshot files were exported. Loopback serving/HTTP needed sandbox escalation. No server, shared-contract, package, or lockfile source changes were made.
+
+**Completion gate: INCOMPLETE — implementation and automated/production-asset checks pass; the listed browser rechecks remain BLOCKED. Stop after Step 6 and await the user's instruction.**

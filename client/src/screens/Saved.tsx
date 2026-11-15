@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { EventCard } from '../components/EventCard';
 import { useSavedEvents } from '../components/SavedEvents';
@@ -19,15 +19,22 @@ export function SavedRecordView({ id, state, retry }: { id: string; state: Resou
     {state.status === 'loading' ? <LoadingState message="Loading a saved event…" /> : state.status === 'error' ? <ErrorState error={state.error} onRetry={retry} />
       : <><h3>This saved event is unavailable</h3><p>The listing may have been removed or the link may no longer be valid. It stays saved until you remove it.</p><button className="button button-secondary" onClick={retry}>Check availability again</button></>}
     <p className="filter-note">Saved event ID: {id}</p>
-    <button className="button button-secondary" aria-label={`Remove saved event ${id}`} onClick={() => setSaved(id, false)}>Remove from saved</button>
+    <button className="button button-secondary" data-remove-saved aria-label={`Remove saved event ${id}`} onClick={() => setSaved(id, false)}>Remove from saved</button>
   </section>;
 }
 
 export function Saved({ revision = 0 }: { revision?: number }) {
   const { ids, persisted } = useSavedEvents();
   const [attempt, setAttempt] = React.useState(0);
-  return <section className="saved-events" aria-labelledby="saved-heading">
-    <div className="section-heading"><h2 id="saved-heading">Saved events</h2>{ids.length > 0 && <button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Refresh saved events</button>}</div>
+  const heading = useRef<HTMLHeadingElement>(null);
+  const removing = useRef(false);
+  useEffect(() => {
+    if (removing.current) { removing.current = false; heading.current?.focus(); }
+  }, [ids]);
+  return <section className="saved-events" aria-labelledby="saved-heading" onClickCapture={event => {
+    removing.current = event.target instanceof Element && Boolean(event.target.closest('[data-remove-saved]'));
+  }}>
+    <div className="section-heading"><h2 id="saved-heading" tabIndex={-1} ref={heading}>Saved events</h2>{ids.length > 0 && <button className="button button-secondary" onClick={() => setAttempt(value => value + 1)}>Refresh saved events</button>}</div>
     <p className="filter-note">{persisted ? 'Saved in this browser.' : 'Saved changes are currently kept in this tab only.'} Listings are checked for current details, including cancellations.</p>
     {ids.length === 0 ? <EmptyState title="No saved events yet">Choose Save on an event in Discover, Ask, or its detail page. Your saved events will appear here.</EmptyState> : <>
       <p role="status">{ids.length} saved {ids.length === 1 ? 'event' : 'events'}</p>

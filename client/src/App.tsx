@@ -24,11 +24,15 @@ export function App() {
   const heading = useRef<HTMLHeadingElement>(null);
   const currentRoute = useRef(route);
   const browsingScroll = useRef({ discover: 0, ask: 0, saved: 0 });
+  const browsingFocus = useRef<Partial<Record<Page, HTMLElement>>>({});
+  const returnFocus = useRef<HTMLElement | undefined>(undefined);
   useEffect(() => {
     const onHashChange = () => {
       const next = readRoute(window.location.hash);
       const current = currentRoute.current.page;
       if (current === 'discover' || current === 'ask' || current === 'saved') browsingScroll.current[current] = window.scrollY;
+      if (next.page === 'event' && current !== 'event' && document.activeElement instanceof HTMLElement) browsingFocus.current[current] = document.activeElement;
+      returnFocus.current = current === 'event' && next.page !== 'event' ? browsingFocus.current[next.page] : undefined;
       currentRoute.current = next;
       if (next.page !== 'event') backHref.current = `#${next.page}`;
       setRoute(next);
@@ -38,8 +42,10 @@ export function App() {
   }, []);
   const firstRender = useRef(true);
   useEffect(() => {
+    document.title = `${route.page === 'event' ? 'Event details' : labels[route.page]} · Trojan Signal`;
     if (firstRender.current) { firstRender.current = false; return; }
-    heading.current?.focus({ preventScroll: true });
+    const target = returnFocus.current;
+    (target?.isConnected && !target.closest('[hidden]') ? target : heading.current)?.focus({ preventScroll: true });
     window.scrollTo(0, route.page === 'discover' || route.page === 'ask' || route.page === 'saved' ? browsingScroll.current[route.page] : 0);
   }, [route]);
   const intro = introductions[route.page];
