@@ -9,7 +9,7 @@
   "scripts": {
     "test:ai": "node --import tsx --test tests/ai-*.test.ts",
     "test:ai:live": "node --import tsx --env-file-if-exists=.env scripts/verify-ai-live.ts",
-    "test:browser": "node --import tsx --test tests/browser-flows.test.ts tests/mobile-unsaved.test.ts tests/search-browser.test.ts",
+    "test:browser": "node --import tsx --test tests/browser-flows.test.ts tests/mobile-unsaved.test.ts tests/search-browser.test.ts tests/discover-browser.test.ts",
     "audit:deps": "npm audit --audit-level=high",
     "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite --host 0.0.0.0",

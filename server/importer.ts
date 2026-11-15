@@ -5,10 +5,11 @@ import { parseIcs, type ParsedIcsEvent } from './ics';
 import { newId } from './records';
 import type { Store, StoredEvent } from './store';
 import { campusTimeToDate, toCampusIso } from './time';
+import { enrichEngageScFood } from './engagesc-details';
 
 export const DEFAULT_FEED_URL = 'https://engage.usc.edu/ical/usc/ical_usc.ics';
 const REFRESH_MS = 60 * 60 * 1000; // the feed publishes a one-hour TTL
-const META_KEY = 'feed-imported-at';
+const META_KEY = 'feed-imported-at:archive-public-food-v1';
 
 // The public feed hides most locations behind USC sign-in.
 const UNKNOWN_LOCATION = /^(sign in to download the location|tbd|tba|n\/a|none)$/i;
@@ -38,9 +39,9 @@ function safeUrl(value: string | null) {
 export type MappedFeedEvent = { draft: EventDraft; organizationName: string | null; externalId: string };
 
 // Returns null for events that should not be listed (past, all-day, cancelled, or incomplete).
-export function mapFeedEvent(e: ParsedIcsEvent, sourceKind: EventDraft['sourceKind'], now: Date): MappedFeedEvent | null {
+export function mapFeedEvent(e: ParsedIcsEvent, sourceKind: EventDraft['sourceKind'], now: Date, includePast = false): MappedFeedEvent | null {
   const end = e.end ?? e.start;
-  if (!e.uid || !e.summary || !e.start || !end || e.allDay || end.getTime() < now.getTime() || e.status === 'CANCELLED') return null;
+  if (!e.uid || !e.summary || !e.start || !end || e.allDay || (!includePast && end.getTime() < now.getTime()) || e.status === 'CANCELLED') return null;
 
   const body = cleanDescription(e.description);
   const eventType = e.categories.find(c => c.kind === 'event_type')?.value ?? null;
@@ -98,14 +99,21 @@ export async function importFeed(store: Store, url: string, now = new Date()): P
   const parsed = parseIcs(await response.text(), campusTimeToDate);
   const result: ImportResult = { inserted: 0, updated: 0, unchanged: 0, skipped: 0 };
   const stamp = now.toISOString();
+  const records: StoredEvent[] = [];
   for (const e of parsed) {
-    const mapped = mapFeedEvent(e, sourceKind, now);
+    const mapped = mapFeedEvent(e, sourceKind, now, true);
     if (!mapped) { result.skipped++; continue; }
     const record: StoredEvent = {
       id: newId(), status: 'published', organizationId: null, organizationName: mapped.organizationName, data: mapped.draft,
       flyerId: null, extractedBy: 'import', confirmation: 'source-imported', externalId: mapped.externalId,
       createdAt: stamp, updatedAt: stamp, publishedAt: stamp,
     };
+    records.push(record);
+  }
+  // Keep the archive searchable, but only prefetch public details for upcoming listings.
+  // Past listings are refreshed when someone opens their detail page.
+  const enriched = await enrichEngageScFood(store, records, now, true);
+  for (const record of enriched) {
     result[await store.upsertImported(record)]++;
   }
   return result;

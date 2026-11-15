@@ -135,4 +135,5 @@ export type OrganizerFeedbackResponse = {
   summary: StoredFeedbackSummary | null;
 };
 
-// GET /api/events query params: from, to (ISO), free=1, food=1, q=keyword text
+// GET /api/events: from/to (ISO), free=1, food=1, q=keywords.
+// scope=all with q of at least 2 characters also searches past event titles.

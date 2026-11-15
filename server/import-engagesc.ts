@@ -9,7 +9,7 @@ async function main() {
   const store = createStore();
   await store.init();
   const r = await importFeed(store, url);
-  console.log(`Imported ${r.inserted} new, updated ${r.updated}, unchanged ${r.unchanged}, skipped ${r.skipped} (past, all-day, cancelled or incomplete).`);
+  console.log(`Imported ${r.inserted} new, updated ${r.updated}, unchanged ${r.unchanged}, skipped ${r.skipped} (all-day, cancelled or incomplete). Past events are kept for title search and feedback.`);
   process.exit(0);
 }
 

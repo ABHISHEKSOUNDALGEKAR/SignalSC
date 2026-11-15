@@ -75,6 +75,8 @@ export function AskPage() {
 
 export function DiscoverPage() {
   const latestRequest = useRef(0);
+  const [titleQuery, setTitleQuery] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
   const [today, setToday] = useState(false);
   const [week, setWeek] = useState(false);
   const [free, setFree] = useState(false);
@@ -86,7 +88,8 @@ export function DiscoverPage() {
     const requestId = ++latestRequest.current;
     setLoading(true); setError('');
     const params: string[] = [];
-    if (today) params.push(dateQuery('today'));
+    if (activeSearch) params.push(`q=${encodeURIComponent(activeSearch)}&scope=all`);
+    else if (today) params.push(dateQuery('today'));
     else if (week) params.push(dateQuery('week'));
     if (free) params.push('free=1');
     if (food) params.push('food=1');
@@ -94,21 +97,47 @@ export function DiscoverPage() {
       .catch(e => { if (requestId === latestRequest.current) setError(e instanceof Error ? e.message : 'Could not load events.'); })
       .finally(() => { if (requestId === latestRequest.current) setLoading(false); });
   };
-  useEffect(reload, [today, week, free, food]);
-  const grouped = dateGroups(events);
-  const filtered = today || week || free || food;
-  const clearFilters = () => { setToday(false); setWeek(false); setFree(false); setFood(false); };
+  useEffect(reload, [today, week, free, food, activeSearch]);
+  const isPast = (event: EventRecord) => Date.parse(event.endsAt ?? event.startsAt ?? '') < Date.now();
+  const upcoming = events.filter(event => !isPast(event));
+  const past = activeSearch ? events.filter(isPast).sort((a, b) => Date.parse(b.startsAt!) - Date.parse(a.startsAt!)) : [];
+  const grouped = dateGroups(upcoming);
+  const filtered = today || week || free || food || Boolean(activeSearch);
+  const clearFilters = () => { setToday(false); setWeek(false); setFree(false); setFood(false); setTitleQuery(''); setActiveSearch(''); };
   return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero"><div className="eyebrow">Around University Park</div><h1>Make room<br />for a good plan.</h1><p className="lede">Student-run, campus-connected, and clear about what’s known. Browse what’s coming up in Los Angeles.</p><div className="hero-rule" /></section>
+    <form className="discover-search" role="search" aria-label="Search event titles" onSubmit={e => {
+      e.preventDefault();
+      const query = titleQuery.trim();
+      if (query.length === 1) return;
+      setToday(false); setWeek(false); setActiveSearch(query);
+    }}>
+      <label className="field-label" htmlFor="discover-title">Find an event by title</label>
+      <div className="discover-search-controls">
+        <input id="discover-title" type="search" minLength={2} maxLength={120} value={titleQuery} placeholder="Search current or past events…" aria-describedby="discover-search-hint"
+          onChange={e => { setTitleQuery(e.target.value); if (!e.target.value.trim()) setActiveSearch(''); }} />
+        <button className="btn btn-primary" type="submit" disabled={loading || titleQuery.trim().length === 1}>Search</button>
+        {activeSearch && <button className="btn btn-outline" type="button" onClick={() => { setTitleQuery(''); setActiveSearch(''); }}>Clear search</button>}
+      </div>
+      <p className="ask-hint" id="discover-search-hint">Upcoming events are shown by default. Search a title to also find past events and leave feedback.</p>
+    </form>
     <div className="filters" aria-label="Filter events">
-      <button className={`filter-chip ${today ? 'selected' : ''}`} aria-pressed={today} onClick={() => { setToday(!today); if (!today) setWeek(false); }}>LA Today</button>
-      <button className={`filter-chip ${week ? 'selected' : ''}`} aria-pressed={week} onClick={() => { setWeek(!week); if (!week) setToday(false); }}>This week</button>
+      <button className={`filter-chip ${today ? 'selected' : ''}`} aria-pressed={today} onClick={() => { setToday(!today); setActiveSearch(''); setTitleQuery(''); if (!today) setWeek(false); }}>LA Today</button>
+      <button className={`filter-chip ${week ? 'selected' : ''}`} aria-pressed={week} onClick={() => { setWeek(!week); setActiveSearch(''); setTitleQuery(''); if (!week) setToday(false); }}>This week</button>
       <button className={`filter-chip ${free ? 'selected' : ''}`} aria-pressed={free} onClick={() => setFree(!free)}>Free</button>
       <button className={`filter-chip ${food ? 'selected' : ''}`} aria-pressed={food} onClick={() => setFood(!food)}>Food advertised</button>
     </div>
-    <div className="section-head"><h2>{today ? 'Today in LA' : week ? 'The week ahead' : 'Coming up'}</h2><span className="muted">{loading ? 'Updating…' : `${events.length} events`}</span></div>
-    {error ? <ErrorNotice error={error} retry={reload} /> : loading ? <LoadingList /> : events.length === 0 ? <EmptyState title="No plans on the board yet" action={<div className="empty-actions">{filtered && <button className="btn btn-primary" onClick={clearFilters}>Clear filters</button>}<a className="btn btn-outline" href="#/ask">Ask a question</a></div>}>{filtered ? 'Nothing matches these filters right now. Clear them to see everything coming up, or ask Signal for something specific.' : 'No upcoming events are listed right now. Check back soon, or ask Signal for something specific.'}</EmptyState> :
+    <div className="section-head"><h2>{activeSearch ? `Title results for “${activeSearch}”` : today ? 'Today in LA' : week ? 'The week ahead' : 'Coming up'}</h2><span className="muted" role="status">{loading ? 'Updating…' : `${upcoming.length + past.length} events`}</span></div>
+    {error ? <ErrorNotice error={error} retry={reload} /> : loading ? <LoadingList /> : upcoming.length + past.length === 0 ? <EmptyState title={activeSearch ? 'No matching event titles' : 'No plans on the board yet'} action={<div className="empty-actions">{filtered && <button className="btn btn-primary" onClick={clearFilters}>Clear filters</button>}<a className="btn btn-outline" href="#/ask">Ask a question</a></div>}>{activeSearch ? 'Try fewer title keywords. Past events are searchable when they are available in the public archive.' : filtered ? 'Nothing matches these filters right now. Clear them to see everything coming up, or ask SignalSC for something specific.' : 'No upcoming events are listed right now. Check back soon, or ask SignalSC for something specific.'}</EmptyState> :
+      <>
+      {activeSearch && upcoming.length > 0 && <h3>Upcoming matches</h3>}
+      {
       grouped.map(([day, items]) => <section key={day}><div className="date-block">{day}</div><div className="event-list">{items.map(event => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} />)}</div></section>)}
+      {past.length > 0 && <section aria-label="Past event search results"><div className="section-head"><h3>Past events · Leave feedback</h3></div>
+        <p className="event-meta">Open an event to leave a rating or feedback.</p>
+        <div className="event-list">{past.map(event => <div key={event.id}><span className="badge">Past event</span><EventCard event={event} href={`#/event/${encodeURIComponent(event.id)}`} /></div>)}</div>
+      </section>}
+      </>}
   </main>;
 }
 

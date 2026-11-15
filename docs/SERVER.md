@@ -41,6 +41,8 @@ Express API in `server/`, contract in `shared/api.ts`.
 
 The school-wide EngageSC feed is public and updates hourly. Each record keeps its EngageSC link as `sourceUrl`, its host as `organizationName`, and is labeled `source-imported`.
 
+- Timed past listings still available in the public feed are retained for title search and feedback. Normal discovery remains upcoming-only. `GET /api/events?scope=all&q=title+keywords` includes past title matches; blank or one-character queries do not unlock the archive. Existing event IDs and feedback are preserved on reimport.
+- The feed can omit the public event page's food flag. Upcoming imports are also checked against EngageSC's public `isFoodIncluded` field in batches, with a six-hour cache. Opening an imported event refreshes that same field on demand, including archived events. A confirmed flag adds "Food Provided" source evidence; missing fields and source failures do not invent food, price, or venue details. Temporary failures preserve previously verified food facts and retry after five minutes. This public structured field does not need a model call.
 - The feed hides most locations behind USC sign-in. Those events have `location: null` and the note "Location is shown on EngageSC after USC sign-in." in `uncertainties`.
 - Food is `advertised` only when the listing explicitly offers it (the matching text is kept in `evidence`); otherwise it is `unknown`. Cost is `0` only when the listing says admission is free.
 - Records are matched by the feed's event id, so a refresh updates in place and never duplicates. Organizer-published events are never touched by the import.

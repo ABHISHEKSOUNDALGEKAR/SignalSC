@@ -7,6 +7,7 @@ import {
 import { clearSessionCookie, findOrganizationByCode, getSession, requireOrganizer, setSessionCookie } from './auth';
 import { extractDraft } from './extract';
 import { createFeedbackSummary } from './feedback';
+import { refreshEventFood } from './engagesc-details';
 import { buildIcs } from './ics';
 import { modelConfigured, ModelUnavailableError } from './model';
 import { applyPatch, missingForPublish, newId, toDraftRecord, toEventRecord } from './records';
@@ -50,11 +51,16 @@ export function apiRouter(store: Store) {
     const from = typeof q.from === 'string' && !Number.isNaN(Date.parse(q.from)) ? new Date(q.from) : new Date();
     const to = typeof q.to === 'string' && !Number.isNaN(Date.parse(q.to)) ? new Date(q.to) : new Date(from.getTime() + 60 * 86_400_000);
     const text = typeof q.q === 'string' ? q.q.trim().toLowerCase() : '';
+    if (text.length > 120) return res.status(400).json({ error: 'Search titles using up to 120 characters.' });
+    const archiveSearch = q.scope === 'all' && text.length >= 2;
+    const titleWords = text.normalize('NFKD').replace(/\p{M}/gu, '').match(/[\p{L}\p{N}]+/gu) ?? [];
     const events = (await publishedEvents(store))
-      .filter(e => inWindow(e, from, to))
+      .filter(e => archiveSearch && !q.from && !q.to ? Boolean(e.startsAt) : inWindow(e, from, to))
       .filter(e => q.free !== '1' || e.costCents === 0)
       .filter(e => q.food !== '1' || e.food === 'advertised')
-      .filter(e => !text || [e.title, e.description, e.location, e.organizationName].join(' ').toLowerCase().includes(text))
+      .filter(e => !text || (archiveSearch
+        ? titleWords.length > 0 && titleWords.every(word => e.title.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').includes(word))
+        : [e.title, e.description, e.location, e.organizationName].join(' ').toLowerCase().includes(text)))
       .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
     const body: EventsResponse = { events, mode: 'live' };
     res.json(body);
@@ -64,7 +70,7 @@ export function apiRouter(store: Store) {
     const record = await store.get(String(req.params.id));
     // Cancelled events stay readable so students who saved them can see the cancellation.
     if (!record || record.status === 'draft') return res.status(404).json({ error: 'Event not found.' });
-    const body: EventResponse = { event: toEventRecord(record) };
+    const body: EventResponse = { event: toEventRecord(await refreshEventFood(store, record)) };
     res.json(body);
   }));
 
