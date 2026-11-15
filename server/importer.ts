@@ -6,6 +6,7 @@ import { newId } from './records';
 import type { Store, StoredEvent } from './store';
 import { campusTimeToDate, toCampusIso } from './time';
 import { enrichEngageScFood } from './engagesc-details';
+import { enrichImportedEvents } from './import-enrichment';
 
 export const DEFAULT_FEED_URL = 'https://engage.usc.edu/ical/usc/ical_usc.ics';
 const REFRESH_MS = 60 * 60 * 1000; // the feed publishes a one-hour TTL
@@ -15,7 +16,6 @@ const META_KEY = 'feed-imported-at:archive-public-food-v1';
 const UNKNOWN_LOCATION = /^(sign in to download the location|tbd|tba|n\/a|none)$/i;
 // Only explicit offers count as "food advertised"; anything else stays unknown.
 const FOOD_PATTERN = /\b(free food|food (?:and|&) drinks?|food (?:will be |is )?(?:provided|served)|refreshments|snacks|pizza|boba|potluck|catered|catering|donuts|tacos|light bites|delicious food|(?:lunch|dinner|breakfast|brunch) (?:will be |is )?(?:provided|served|included)|free (?:lunch|dinner|breakfast|brunch))\b/i;
-const MEAL_EVENT_TYPE = /^(luncheon|dinner \/ gala)$/i;
 const FREE_ADMISSION_PATTERN = /\b(free (?:admission|entry|event|to attend|and open to)|admission is free|no cost|free of charge)\b/i;
 
 function cleanDescription(text: string) {
@@ -28,7 +28,7 @@ function cleanDescription(text: string) {
 
 function excerpt(text: string, index: number, length: number) {
   const start = Math.max(0, index - 60);
-  return text.slice(start, Math.min(text.length, index + length + 60)).replace(/\s+/g, ' ').trim().slice(0, 300);
+  return text.slice(start, Math.min(text.length, index + length + 60)).trim().slice(0, 300);
 }
 
 function safeUrl(value: string | null) {
@@ -36,7 +36,7 @@ function safeUrl(value: string | null) {
   try { const u = new URL(value); return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null; } catch { return null; }
 }
 
-export type MappedFeedEvent = { draft: EventDraft; organizationName: string | null; externalId: string };
+export type MappedFeedEvent = { draft: EventDraft; sourceText: string; organizationName: string | null; externalId: string };
 
 // Returns null for events that should not be listed (past, all-day, cancelled, or incomplete).
 export function mapFeedEvent(e: ParsedIcsEvent, sourceKind: EventDraft['sourceKind'], now: Date, includePast = false): MappedFeedEvent | null {
@@ -57,7 +57,6 @@ export function mapFeedEvent(e: ParsedIcsEvent, sourceKind: EventDraft['sourceKi
   let food: EventDraft['food'] = 'unknown';
   const foodMatch = FOOD_PATTERN.exec(text);
   if (foodMatch) { food = 'advertised'; evidence.push({ field: 'food', excerpt: excerpt(text, foodMatch.index, foodMatch[0].length) }); }
-  else if (eventType && MEAL_EVENT_TYPE.test(eventType)) { food = 'advertised'; evidence.push({ field: 'food', excerpt: `Event type: ${eventType}` }); }
 
   let costCents: number | null = null;
   const freeMatch = FREE_ADMISSION_PATTERN.exec(text);
@@ -87,7 +86,8 @@ export function mapFeedEvent(e: ParsedIcsEvent, sourceKind: EventDraft['sourceKi
     evidence,
     uncertainties,
   };
-  return { draft, organizationName: e.organizer?.slice(0, 200) ?? null, externalId: `${sourceKind}:${e.uid}` };
+  return { draft, sourceText: `${e.summary}\n${[body, labels].filter(Boolean).join('\n\n')}`,
+    organizationName: e.organizer?.slice(0, 200) ?? null, externalId: `${sourceKind}:${e.uid}` };
 }
 
 export type ImportResult = { inserted: number; updated: number; unchanged: number; skipped: number };
@@ -100,9 +100,17 @@ export async function importFeed(store: Store, url: string, now = new Date()): P
   const result: ImportResult = { inserted: 0, updated: 0, unchanged: 0, skipped: 0 };
   const stamp = now.toISOString();
   const records: StoredEvent[] = [];
+  const mappedEvents: MappedFeedEvent[] = [];
   for (const e of parsed) {
     const mapped = mapFeedEvent(e, sourceKind, now, true);
     if (!mapped) { result.skipped++; continue; }
+    mappedEvents.push(mapped);
+  }
+  // Retain the archive without spending credits to eagerly enrich past events.
+  // Both AI enrichment and public-detail prefetch target upcoming listings.
+  await enrichImportedEvents(store, mappedEvents.filter(({ draft }) =>
+    Date.parse(draft.endsAt ?? draft.startsAt ?? '') >= now.getTime()), now);
+  for (const mapped of mappedEvents) {
     const record: StoredEvent = {
       id: newId(), status: 'published', organizationId: null, organizationName: mapped.organizationName, data: mapped.draft,
       flyerId: null, extractedBy: 'import', confirmation: 'source-imported', externalId: mapped.externalId,

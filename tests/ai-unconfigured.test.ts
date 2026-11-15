@@ -5,6 +5,9 @@ delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
 const {completeJson, modelConfigured, ModelUnavailableError} = await import('../server/model');
 const {extractDraft} = await import('../server/extract');
 const {search} = await import('../server/search');
+const {enrichImportedEvents} = await import('../server/import-enrichment');
+const {MemoryStore} = await import('../server/store');
+const {emptyDraft} = await import('../server/extract');
 
 test('without credentials, extraction is explicitly manual and direct model calls fail', async () => {
   assert.equal(modelConfigured, false);
@@ -25,4 +28,14 @@ test('unconfigured search uses rules and returns truthful empty results', async 
   assert.equal(result.constraints.beginnerOnly, true);
   assert.equal(result.constraints.afterMinutes, 1020);
   assert.equal(result.noMatch, true);
+});
+
+test('unconfigured imported-event enrichment never contacts a provider and leaves absent facts unknown', async () => {
+  globalThis.fetch = async () => { throw new Error('Must not call a provider'); };
+  const draft = { ...emptyDraft(null), title: 'Synthetic gathering', description: 'A discussion.' };
+  await enrichImportedEvents(new MemoryStore(), [{ draft }]);
+  assert.equal(draft.food, 'unknown');
+  assert.equal(draft.costCents, null);
+  assert.equal(draft.beginnerFriendly, null);
+  assert.deepEqual(draft.topics, []);
 });

@@ -125,7 +125,7 @@ async function interpretWithModel(query: string, now: Date): Promise<SearchConst
 function topicScore(e: EventRecord, keywords: string[]): number {
   if (!keywords.length) return 1;
   const title = e.title.toLowerCase();
-  const body = [e.description, e.eligibility, e.location, e.organizationName].filter(Boolean).join(' ').toLowerCase();
+  const body = [e.description, ...(e.topics ?? []), e.eligibility, e.location, e.organizationName].filter(Boolean).join(' ').toLowerCase();
   let score = 0;
   for (const k of keywords) {
     const re = new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
@@ -261,7 +261,7 @@ async function writeAnswer(query: string, results: EventRecord[], related: Searc
   const differences = new Map(related.map(r => [r.event.id, r.differences]));
   const compact = results.map(e => ({
     id: e.id, title: e.title, description: e.description.slice(0, 400), startsAt: e.startsAt, location: e.location,
-    eligibility: e.eligibility, costCents: e.costCents, food: e.food, beginnerFriendly: e.beginnerFriendly, organization: e.organizationName,
+    eligibility: e.eligibility, costCents: e.costCents, food: e.food, beginnerFriendly: e.beginnerFriendly, topics: e.topics ?? [], organization: e.organizationName,
     matchType: differences.has(e.id) ? 'related' : 'exact', differences: differences.get(e.id) ?? [],
   }));
   const raw = await completeJson([

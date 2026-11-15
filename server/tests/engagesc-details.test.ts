@@ -81,6 +81,23 @@ test('temporary source errors preserve cached food evidence and retry later', as
   assert.equal(calls, 1);
 });
 
+test('public details do not resolve a conflicting description, including on a later detail refresh', async () => {
+  const store = new MemoryStore();
+  const item = record();
+  item.data.food = 'not-advertised';
+  item.data.evidence = [{ field: 'food', excerpt: 'No food will be provided.' }];
+  globalThis.fetch = async () => Response.json({ data: { e0: detail() } });
+  const [enriched] = await enrichEngageScFood(store, [item], now);
+  assert.equal(enriched.data.food, 'unknown');
+  assert.equal(enriched.data.costCents, null);
+  assert.match(enriched.data.uncertainties.join(' '), /disagree/);
+  assert.deepEqual(enriched.data.evidence, []);
+  assert.equal((await enrichEngageScFood(store, [enriched], now))[0].data.food, 'unknown');
+  const ambiguous = record();
+  ambiguous.data.uncertainties = ['Source has conflicting or ambiguous food; left unknown.'];
+  assert.equal((await enrichEngageScFood(store, [ambiguous], now))[0].data.food, 'unknown');
+});
+
 test('detail refresh deduplicates requests and retains event IDs and feedback', async () => {
   const store = new MemoryStore();
   const item = record();

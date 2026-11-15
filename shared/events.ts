@@ -12,6 +12,7 @@ export const eventDraftSchema = z.object({
   costCents: z.number().int().nonnegative().nullable(),
   food: z.enum(['advertised', 'not-advertised', 'unknown']),
   beginnerFriendly: z.boolean().nullable(),
+  topics: z.array(z.string().max(100)).max(12).optional(),
   registrationUrl: z.string().url().refine(s => /^https?:\/\//.test(s)).nullable(),
   registrationDeadline: z.string().datetime({ offset: true }).nullable(),
   sourceUrl: z.string().url().refine(s => /^https?:\/\//.test(s)).nullable(),

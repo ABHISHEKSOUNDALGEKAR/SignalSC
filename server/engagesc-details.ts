@@ -28,6 +28,16 @@ export function engageScEventId(sourceUrl: string | null): string | null {
 
 function applyDetail(record: StoredEvent, detail: Detail | null): StoredEvent {
   if (!detail?.isFoodIncluded) return record;
+  if (record.data.food === 'not-advertised' ||
+      record.data.uncertainties.some(note => /conflicting or ambiguous food|calendar description and public food details disagree/i.test(note))) {
+    return {
+      ...record,
+      data: { ...record.data, food: 'unknown',
+        evidence: record.data.evidence.filter(item => item.field !== 'food'),
+        uncertainties: [...new Set([...record.data.uncertainties,
+          'Calendar description and public food details disagree; food left unknown.'])] },
+    };
+  }
   // The public site's "Food Provided" section is controlled by isFoodIncluded.
   // Its absence does not establish that no food is offered.
   const evidence = {
