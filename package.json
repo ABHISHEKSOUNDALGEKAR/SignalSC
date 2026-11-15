@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
     "start": "NODE_ENV=production node --env-file-if-exists=.env dist/server.js",
-    "import:engagesc": "tsx --env-file-if-exists=.env server/import-engagesc.ts"
+    "import:engagesc": "tsx --env-file-if-exists=.env server/import-engagesc.ts",
+    "test:server": "tsx --test server/tests/*.test.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
