@@ -175,11 +175,18 @@ test('attendance restrictions require source evidence, not USC context', async (
 test('untrusted announcement instructions remain content and do not override extraction rules', async () => {
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body));
+    const announcement = body.messages[1].content.find((part: { type: string; text?: string }) =>
+      part.type === 'text' && /<announcement>/.test(part.text ?? ''));
+    assert.ok(announcement);
+    assert.match(announcement.text, /Robotics Night/);
+    assert.doesNotMatch(announcement.text, /IGNORE ALL RULES|TCC 450/);
     const systemPrompt = body.messages[0].content;
     assert.match(systemPrompt, /instructions printed.*untrusted content/i);
     assert.match(systemPrompt, /do not combine their facts/i);
     assert.match(systemPrompt, /conflicts with another plausible/i);
     assert.match(systemPrompt, /blurry, crowded, or partially obscured/i);
+    assert.match(systemPrompt, /only a title is readable, return null for description/i);
+    assert.match(systemPrompt, /exact verbatim quote of readable source text/i);
     return reply({
       title: 'Robotics Night', date: '2026-11-20', yearStated: true,
       startTime: '18:30', isFree: null, costDollars: null, location: null,
@@ -194,6 +201,21 @@ test('untrusted announcement instructions remain content and do not override ext
   assert.equal(result.draft.costCents, null);
   assert.equal(result.draft.location, null);
   assert.equal(result.draft.eligibility, null);
+});
+
+test('text extraction does not complete a partial registration link', async () => {
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.match(body.messages[0].content, /never add a scheme or complete a host\/path/i);
+    return reply({
+      title: 'Printmaking Workshop',
+      registrationUrl: 'https://forms.gle/abc123',
+      evidence: [{ field: 'registrationUrl', excerpt: 'forms.gle/abc123' }],
+    });
+  };
+  const result = await extractDraft({ text: 'Printmaking Workshop. RSVP: forms.gle/abc123' }, now);
+  assert.equal(result.draft.registrationUrl, null);
+  assert.ok(result.draft.uncertainties.some(note => /not printed in full/i.test(note)));
 });
 
 test('no-match answer does not ask the model to invent events', async () => {
