@@ -104,6 +104,8 @@ h3 { font-size:18px; letter-spacing:-.35px; }
 .empty-state { text-align:center; padding:42px 24px; }
 .empty-mark { color:var(--gold); font:40px 'Playfair Display',serif; }
 .empty-state h3 { font:600 23px 'Playfair Display',serif; margin:11px 0; }
+.empty-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:18px; }
+.error-box .btn { margin-top:4px; }
 .detail-hero { background:var(--cardinal); color:#fff8ea; border-radius:4px 34px 4px 34px; padding:clamp(25px,5vw,55px); position:relative; overflow:hidden; margin:15px 0 28px; }
 .detail-hero:after { content:'✦'; position:absolute; right:5%; bottom:-40px; font-size:190px; line-height:1; color:rgba(231,185,65,.13); transform:rotate(15deg); }
 .detail-hero h1 { position:relative; z-index:1; max-width:800px; }

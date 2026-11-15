@@ -52,8 +52,8 @@ export function AskPage() {
           <div className="answer-panel">{result.answer}</div>
           {result.constraintSummary.length > 0 && <div className="chip-row">{result.constraintSummary.map((chip, index) => <span className="constraint-chip" key={`${chip}-${index}`}>{chip}</span>)}</div>}
           <div className="section-head"><h2>{result.noMatch ? 'No events matched' : 'Worth a look'}</h2><span className="muted">{result.results.length} found</span></div>
-          {result.noMatch ? <p className="lede">No events fit all of those details right now. The answer above explains what we understood; try easing one constraint or check Discover.</p> :
-            result.results.length === 0 ? <EmptyState title="No matching events">Try a broader question or explore all upcoming events in Discover.</EmptyState> :
+          {result.noMatch ? <><p className="lede">No events fit all of those details right now. The answer above explains what we understood; try easing one constraint or check Discover.</p><a className="btn btn-outline" href="#/discover">Browse Discover</a></> :
+            result.results.length === 0 ? <EmptyState title="No matching events" action={<div className="empty-actions"><a className="btn btn-outline" href="#/discover">Browse Discover</a></div>}>Try a broader question or explore all upcoming events in Discover.</EmptyState> :
               <div className="results-list">{result.results.map(({ event, reason }) => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} reason={reason} />)}</div>}
           {result.excluded.length > 0 && <section className="detail-section"><h3>Left out of these results</h3>{result.excluded.map((item, i) => <p className="event-meta" key={`${item.reason}-${i}`}>{item.reason}{item.count > 1 ? ` · ${item.count} events` : ''}</p>)}</section>}
         </>}
@@ -86,6 +86,8 @@ export function DiscoverPage() {
   };
   useEffect(reload, [today, week, free, food]);
   const grouped = dateGroups(events);
+  const filtered = today || week || free || food;
+  const clearFilters = () => { setToday(false); setWeek(false); setFree(false); setFood(false); };
   return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero"><div className="eyebrow">Around University Park</div><h1>Make room<br />for a good plan.</h1><p className="lede">Student-run, campus-connected, and clear about what’s known. Browse what’s coming up in Los Angeles.</p><div className="hero-rule" /></section>
     <div className="filters" aria-label="Filter events">
@@ -95,7 +97,7 @@ export function DiscoverPage() {
       <button className={`filter-chip ${food ? 'selected' : ''}`} aria-pressed={food} onClick={() => setFood(!food)}>Food advertised</button>
     </div>
     <div className="section-head"><h2>{today ? 'Today in LA' : week ? 'The week ahead' : 'Coming up'}</h2><span className="muted">{loading ? 'Updating…' : `${events.length} events`}</span></div>
-    {error ? <ErrorNotice error={error} retry={reload} /> : loading ? <LoadingList /> : events.length === 0 ? <EmptyState title="No plans on the board yet">Try a wider date range, turn off a filter, or ask Signal for something specific.</EmptyState> :
+    {error ? <ErrorNotice error={error} retry={reload} /> : loading ? <LoadingList /> : events.length === 0 ? <EmptyState title="No plans on the board yet" action={<div className="empty-actions">{filtered && <button className="btn btn-primary" onClick={clearFilters}>Clear filters</button>}<a className="btn btn-outline" href="#/ask">Ask a question</a></div>}>{filtered ? 'Nothing matches these filters right now. Clear them to see everything coming up, or ask Signal for something specific.' : 'No upcoming events are listed right now. Check back soon, or ask Signal for something specific.'}</EmptyState> :
       grouped.map(([day, items]) => <section key={day}><div className="date-block">{day}</div><div className="event-list">{items.map(event => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} />)}</div></section>)}
   </main>;
 }
@@ -104,15 +106,23 @@ export function EventDetailPage({ id }: { id: string }) {
   const [event, setEvent] = useState<EventRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notFound, setNotFound] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
   const reload = () => {
-    setLoading(true); setError('');
-    api.event(id).then(data => setEvent(data.event)).catch(e => setError(e instanceof Error ? e.message : 'Event could not be found.')).finally(() => setLoading(false));
+    setLoading(true); setError(''); setNotFound(false);
+    api.event(id).then(data => setEvent(data.event)).catch(e => {
+      if (e instanceof ApiError && e.status === 404) setNotFound(true);
+      else setError(e instanceof Error ? e.message : 'This event could not be loaded.');
+    }).finally(() => setLoading(false));
   };
   useEffect(() => { reload(); const ids = readSaved(); setSaved(ids?.includes(id) ?? false); }, [id]);
-  if (loading) return <main id="main-content" tabIndex={-1} className="page"><LoadingList count={2} /></main>;
-  if (!event) return <main id="main-content" tabIndex={-1} className="page"><a className="nav-link" href="#/discover">← Discover</a><ErrorNotice error={error || 'This event is no longer available.'} retry={reload} /></main>;
+  const backLink = <a href="#/discover" className="nav-link" style={{ paddingLeft: 0 }}>← Back to Discover</a>;
+  if (loading) return <main id="main-content" tabIndex={-1} className="page">{backLink}<LoadingList count={2} /></main>;
+  if (!event) return <main id="main-content" tabIndex={-1} className="page">{backLink}
+    {notFound ? <EmptyState title="This event is no longer available" action={<div className="empty-actions"><a className="btn btn-primary" href="#/discover">Browse Discover</a><a className="btn btn-outline" href="#/saved">Your saved events</a></div>}>Its source may have removed it, or the link may be out of date.</EmptyState>
+      : <ErrorNotice error={error || 'This event could not be loaded.'} retry={reload} />}
+  </main>;
   const foodText = event.food === 'advertised' ? 'Advertised' : event.food === 'not-advertised' ? 'Not advertised' : 'Not listed';
   function toggleSaved() {
     const ids = readSaved();
@@ -126,7 +136,7 @@ export function EventDetailPage({ id }: { id: string }) {
     } catch { setSaveError('This browser could not save the event. Allow site storage and try again.'); }
   }
   return <main id="main-content" tabIndex={-1} className="page">
-    <a href="#/discover" className="nav-link" style={{ paddingLeft: 0 }}>← Back to Discover</a>
+    {backLink}
     <section className="detail-hero"><div className="eyebrow">{event.organizationName?.trim() || 'Organizer not listed'} · {event.status === 'cancelled' ? 'Notice' : 'Event details'}</div><h1>{event.title}</h1><div className="detail-meta">{dateLabel(event.startsAt, 'Time not listed')}{event.endsAt ? ` — ${dateLabel(event.endsAt)}` : ''}<br />{locationLabel(event)} · {money(event.costCents)}</div>
       <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`} aria-describedby={event.endsAt ? undefined : 'calendar-note'}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
       {event.startsAt && !event.endsAt && <p className="calendar-note" id="calendar-note">End time isn’t listed, so your calendar entry is set to 1 hour.</p>}
@@ -185,8 +195,8 @@ export function SavedPage() {
   useEffect(() => { void reload(); }, []);
   return <main id="main-content" tabIndex={-1} className="page"><section className="hero"><div className="eyebrow">Your list, on this device</div><h1>Keep the plans<br />you like.</h1><p className="lede">Saved events are stored in this browser and refreshed from the event source every time you visit.</p><div className="hero-rule" /></section>
     {error && <ErrorNotice error={error} retry={() => void reload()} />}
-    {storageUnavailable && <div className="inline-message" role="alert">This browser could not read your saved events. Allow site storage in your browser settings and try again.</div>}
-    {loading ? <LoadingList /> : storageUnavailable ? null : events.length === 0 && missing.length === 0 ? <EmptyState title="Nothing saved just yet">Save an event you want to remember and it’ll be waiting here.</EmptyState> :
+    {storageUnavailable && <ErrorNotice error="This browser could not read your saved events. Allow site storage in your browser settings and try again." retry={() => void reload()} />}
+    {loading ? <LoadingList /> : storageUnavailable ? null : events.length === 0 && missing.length === 0 ? (error ? null : <EmptyState title="Nothing saved just yet" action={<div className="empty-actions"><a className="btn btn-primary" href="#/discover">Browse Discover</a></div>}>Save an event you want to remember and it’ll be waiting here.</EmptyState>) :
       <div className="event-list">{events.map(event => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} />)}
         {missing.map(id => <div className="event-card" key={id}><div className="event-card-top"><div><h3 className="event-title">This event is no longer available</h3><div className="event-meta">Saved event · source unavailable</div></div><span className="badge cancelled">Unavailable</span></div><p className="event-reason">The source has removed this event or it can’t be reached right now. Its saved place is kept on this device.</p></div>)}</div>}
   </main>;
