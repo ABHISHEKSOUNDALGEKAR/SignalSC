@@ -1,3 +1,4 @@
 - [AI provider approval](ai-provider.md) — BluesMinds was explicitly approved; keep synthetic live checks separate from automatic tests.
 - [Firefox mobile test limits](firefox-mobile-testing.md) — Playwright's Linux Firefox engine supports narrow viewports but does not expose mobile touch capability.
 - [AI spending limits](ai-spending-limits.md) — count failed attempts; per-process request limits are not persistent financial ceilings.
+- [Search product intent](search-product-intent.md) — use AI extensively for helpful discovery, with exact matches and clearly labeled related alternatives.
