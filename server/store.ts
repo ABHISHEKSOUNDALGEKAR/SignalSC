@@ -21,10 +21,21 @@ export type StoredEvent = {
 
 export type Flyer = { mimeType: string; bytes: Buffer };
 export type UpsertResult = 'inserted' | 'updated' | 'unchanged';
+export type StoredFeedback = {
+  id: string;
+  eventId: string;
+  rating: number;
+  wouldReturn: boolean | null;
+  comment: string;
+  deviceKey: string;
+  demo: boolean;
+  createdAt: string;
+};
 
 export interface Store {
   readonly mode: 'live' | 'memory';
   init(): Promise<void>;
+  close?(): Promise<void>;
   insert(record: StoredEvent): Promise<void>;
   update(record: StoredEvent): Promise<void>;
   get(id: string): Promise<StoredEvent | null>;
@@ -34,6 +45,8 @@ export interface Store {
   upsertImported(record: StoredEvent): Promise<UpsertResult>;
   saveFlyer(id: string, flyer: Flyer): Promise<void>;
   getFlyer(id: string): Promise<Flyer | null>;
+  addFeedback(entry: StoredFeedback): Promise<boolean>;
+  listFeedback(eventId: string): Promise<StoredFeedback[]>;
   getMeta(key: string): Promise<string | null>;
   setMeta(key: string, value: string): Promise<void>;
 }
@@ -45,6 +58,7 @@ export class MemoryStore implements Store {
   readonly mode = 'memory' as const;
   private events = new Map<string, StoredEvent>();
   private flyers = new Map<string, Flyer>();
+  private feedback = new Map<string, StoredFeedback>();
   private meta = new Map<string, string>();
   async init() {}
   async insert(record: StoredEvent) { this.events.set(record.id, structuredClone(record)); }
@@ -64,12 +78,23 @@ export class MemoryStore implements Store {
   }
   async saveFlyer(id: string, flyer: Flyer) { this.flyers.set(id, flyer); }
   async getFlyer(id: string) { return this.flyers.get(id) ?? null; }
+  async addFeedback(entry: StoredFeedback) {
+    if ([...this.feedback.values()].some(item => item.eventId === entry.eventId && item.deviceKey === entry.deviceKey)) return false;
+    this.feedback.set(entry.id, structuredClone(entry));
+    return true;
+  }
+  async listFeedback(eventId: string) {
+    return [...this.feedback.values()]
+      .filter(item => item.eventId === eventId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(item => structuredClone(item));
+  }
   async getMeta(key: string) { return this.meta.get(key) ?? null; }
   async setMeta(key: string, value: string) { this.meta.set(key, value); }
 }
 
 // The subset of pg.Pool the store needs.
-export type Queryable = { query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }> };
+export type Queryable = { query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }>; end?: () => Promise<void> };
 
 const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS ts_events (
@@ -88,6 +113,18 @@ const SCHEMA = [
      bytes BYTEA NOT NULL,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
+  `CREATE TABLE IF NOT EXISTS ts_feedback (
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      would_return BOOLEAN,
+      comment TEXT NOT NULL,
+      device_key TEXT NOT NULL,
+      demo BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (event_id, device_key)
+    )`,
+  'CREATE INDEX IF NOT EXISTS ts_feedback_event_idx ON ts_feedback (event_id)',
   'CREATE TABLE IF NOT EXISTS ts_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
 ];
 
@@ -97,6 +134,7 @@ export class PostgresStore implements Store {
   private async rows<T>(sql: string, params?: unknown[]) { return (await this.db.query(sql, params)).rows as T[]; }
 
   async init() { for (const statement of SCHEMA) await this.db.query(statement); }
+  async close() { await this.db.end?.(); }
   async insert(r: StoredEvent) {
     await this.db.query(
       'INSERT INTO ts_events (id, status, organization_id, external_id, record, updated_at) VALUES ($1,$2,$3,$4,$5::jsonb,$6)',
@@ -140,6 +178,38 @@ export class PostgresStore implements Store {
   async getFlyer(id: string) {
     const rows = await this.rows<{ mime_type: string; bytes: Uint8Array }>('SELECT mime_type, bytes FROM ts_flyers WHERE id=$1', [id]);
     return rows[0] ? { mimeType: rows[0].mime_type, bytes: Buffer.from(rows[0].bytes) } : null;
+  }
+  async addFeedback(entry: StoredFeedback) {
+    const rows = await this.rows<{ id: string }>(
+      `INSERT INTO ts_feedback (id, event_id, rating, would_return, comment, device_key, demo, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (event_id, device_key) DO NOTHING
+       RETURNING id`,
+      [entry.id, entry.eventId, entry.rating, entry.wouldReturn, entry.comment, entry.deviceKey, entry.demo, entry.createdAt],
+    );
+    return rows.length > 0;
+  }
+  async listFeedback(eventId: string) {
+    const rows = await this.rows<{
+      id: string;
+      event_id: string;
+      rating: number;
+      would_return: boolean | null;
+      comment: string;
+      device_key: string;
+      demo: boolean;
+      created_at: Date | string;
+    }>('SELECT id, event_id, rating, would_return, comment, device_key, demo, created_at FROM ts_feedback WHERE event_id=$1 ORDER BY created_at ASC', [eventId]);
+    return rows.map(row => ({
+      id: row.id,
+      eventId: row.event_id,
+      rating: row.rating,
+      wouldReturn: row.would_return,
+      comment: row.comment,
+      deviceKey: row.device_key,
+      demo: row.demo,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : new Date(row.created_at).toISOString(),
+    }));
   }
   async getMeta(key: string) {
     const rows = await this.rows<{ value: string }>('SELECT value FROM ts_meta WHERE key=$1', [key]);

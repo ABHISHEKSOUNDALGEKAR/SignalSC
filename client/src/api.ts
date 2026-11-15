@@ -1,6 +1,6 @@
 import type {
   DraftRecord, DraftResponse, DraftsResponse, EventRecord, EventResponse, EventsResponse,
-  ExclusionNote, OrganizerSession, PublishErrorResponse, SearchResponse,
+  ExclusionNote, OrganizerFeedbackResponse, OrganizerSession, PublishErrorResponse, SearchResponse, StoredFeedbackSummary,
 } from '../../shared/api';
 import type { EventDraft } from '../../shared/events';
 
@@ -46,6 +46,14 @@ export const api = {
   ownEvents: () => request<EventsResponse>('/api/organizer/events'),
   updateEvent: (id: string, update: Partial<EventDraft> & { cancelled?: boolean }) =>
     request<EventResponse>(`/api/organizer/events/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(update) }),
+  feedbackCount: (id: string) =>
+    request<{ count: number }>(`/api/events/${encodeURIComponent(id)}/feedback/summary-available`),
+  submitFeedback: (id: string, input: { rating: number; wouldReturn: boolean | null; comment: string; deviceKey: string }) =>
+    request<{ ok: true }>(`/api/events/${encodeURIComponent(id)}/feedback`, { method: 'POST', body: JSON.stringify(input) }),
+  organizerFeedback: (id: string) =>
+    request<OrganizerFeedbackResponse>(`/api/organizer/events/${encodeURIComponent(id)}/feedback`),
+  summarizeFeedback: (id: string) =>
+    request<StoredFeedbackSummary>(`/api/organizer/events/${encodeURIComponent(id)}/feedback/summary`, { method: 'POST' }),
 };
 
 export type { DraftRecord, EventRecord, ExclusionNote, PublishErrorResponse, SearchResponse };

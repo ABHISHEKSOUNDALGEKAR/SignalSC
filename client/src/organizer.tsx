@@ -3,6 +3,7 @@ import type { DraftRecord, EventRecord } from './api';
 import { api, ApiError } from './api';
 import type { EventDraft } from '../../shared/events';
 import { dateLabel, EmptyState, ErrorNotice, LoadingList, locationLabel } from './common';
+import { FeedbackPanel } from './feedback';
 import { campusInput as dateInput, campusInstant } from './time';
 import { confirmLeavingWithUnsavedChanges, setUnsavedChange } from './unsaved-changes';
 
@@ -265,7 +266,7 @@ export function OrganizerPage() {
       </section>
       <section className="form-panel"><div className="section-head" style={{ marginTop: 0 }}><h2>Your events</h2><span className="muted">{events.length} total</span></div>
         {loadingData ? <LoadingList count={2} /> : events.length === 0 ? <EmptyState title="Nothing published yet">After review and publish, your events will appear here.</EmptyState> :
-          <div className="table-list">{events.map(event => <div className="draft-row" key={event.id}><div><h3>{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt, 'Time not listed')} · {locationLabel(event)}</div></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'flex-end' }}><span className={`badge ${event.status === 'cancelled' ? 'cancelled' : 'confirmed'}`}>{event.status}</span><button className="btn btn-outline" onClick={() => { setEditEvent(event); setFormMessage(''); }}>Edit</button><button className={`btn ${event.status === 'cancelled' ? 'btn-quiet' : 'btn-danger'}`} onClick={() => void cancelEvent(event)}>{event.status === 'cancelled' ? 'Restore' : 'Cancel'}</button></div></div>)}</div>}
+          <div className="table-list">{events.map(event => <div className="organizer-event" key={event.id}><div className="draft-row"><div><h3>{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt, 'Time not listed')} · {locationLabel(event)}</div></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'flex-end' }}><span className={`badge ${event.status === 'cancelled' ? 'cancelled' : 'confirmed'}`}>{event.status}</span><button className="btn btn-outline" onClick={() => { setEditEvent(event); setFormMessage(''); }}>Edit</button><button className={`btn ${event.status === 'cancelled' ? 'btn-quiet' : 'btn-danger'}`} onClick={() => void cancelEvent(event)}>{event.status === 'cancelled' ? 'Restore' : 'Cancel'}</button></div></div><FeedbackPanel event={event} /></div>)}</div>}
       </section>
     </>}
     {selected && <section><div className="section-head"><div><div className="eyebrow">Draft review · {selected.extractedBy === 'model' ? 'Extracted from flyer' : 'Manual entry'}</div><h2>Check every detail.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setSelected(null); setFormMessage(''); }}>Back to workspace</button></div>

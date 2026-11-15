@@ -52,6 +52,14 @@ export const searchRequestSchema = z.object({
 });
 export type SearchRequest = z.infer<typeof searchRequestSchema>;
 
+export const feedbackRequestSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  wouldReturn: z.boolean().nullable(),
+  comment: z.string().trim().max(1000),
+  deviceKey: z.string().trim().min(8).max(64),
+});
+export type FeedbackRequest = z.infer<typeof feedbackRequestSchema>;
+
 // ---------- Search ----------
 
 // What the query was understood to mean. Application code applies these, not the model.
@@ -90,5 +98,40 @@ export type DraftResponse = { draft: DraftRecord };
 export type DraftsResponse = { drafts: DraftRecord[] };
 export type PublishErrorResponse = { error: string; missing: string[] };
 export type ErrorResponse = { error: string };
+
+export type FeedbackResponse = { ok: true };
+export type FeedbackSummaryAvailableResponse = { count: number };
+export type FeedbackEntry = {
+  rating: number;
+  wouldReturn: boolean | null;
+  comment: string;
+  createdAt: string;
+  demo: boolean;
+};
+export type FeedbackQuote = { point: string; quote: string };
+export type FeedbackRequestSummary = FeedbackQuote & { count: number };
+export type FeedbackRatingCounts = Record<'1' | '2' | '3' | '4' | '5', number>;
+export type FeedbackSummary = {
+  overall: string;
+  wentWell: FeedbackQuote[];
+  toImprove: FeedbackQuote[];
+  requests: FeedbackRequestSummary[];
+  averageRating: number;
+  ratingCounts: FeedbackRatingCounts;
+  wouldReturnYes: number;
+  wouldReturnNo: number;
+  wouldReturnUnknown: number;
+  responseCount: number;
+  note?: string;
+};
+export type StoredFeedbackSummary = {
+  summary: FeedbackSummary;
+  generatedAt: string;
+  responseCount: number;
+};
+export type OrganizerFeedbackResponse = {
+  responses: FeedbackEntry[];
+  summary: StoredFeedbackSummary | null;
+};
 
 // GET /api/events query params: from, to (ISO), free=1, food=1, q=keyword text

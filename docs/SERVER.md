@@ -18,6 +18,14 @@ Express API in `server/`, contract in `shared/api.ts`.
 | `env.ts` | Production detection |
 | `tests/` | `npm run test:server` |
 
+## Feedback
+
+- `POST /api/events/:id/feedback` accepts one rating per device and event after the event starts. Ratings are 1–5; an optional return-intent answer and comment may also be included. The endpoint is limited to 10 requests per minute per IP.
+- `GET /api/events/:id/feedback/summary-available` returns only the response count.
+- `GET /api/organizer/events/:id/feedback` returns responses and the saved summary to the event's organization. Device keys are never included.
+- `POST /api/organizer/events/:id/feedback/summary` requires at least three responses, returns computed stats and source-quoted sections, and keeps any previous summary if generation fails.
+- Demo responses are marked in the organizer view. Seed seven synthetic responses for an existing published or cancelled event with `npx tsx --env-file-if-exists=.env scripts/seed-feedback.ts <eventId>`. The script refuses to run when `NODE_ENV=production` unless `--allow-production` is passed, and refuses to duplicate existing demo responses.
+
 ## Guarantees
 
 - Students only see `published` events; drafts are visible only to the organization that created them.
