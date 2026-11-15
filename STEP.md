@@ -53,25 +53,27 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 ### Discover
 
-- [ ] Load published, upcoming events through `GET /api/events` using `EventsResponse`.
-- [ ] Render useful event cards grouped by Los Angeles date and ordered by start time.
-- [ ] Add Today, This week, Free, and Food advertised filter chips using `from`, `to`, `free=1`, and `food=1` query parameters as applicable.
-- [ ] Make active filters clear, support combining/resetting filters, and define the This week range consistently in the UI.
-- [ ] Show initial loading, empty feed, no matches under filters, request failure, and retry states.
+- [x] Load published, upcoming events through `GET /api/events` using `EventsResponse`.
+- [x] Render useful event cards grouped by Los Angeles date and ordered by start time.
+- [x] Add Today, This week, Free, and Food advertised filter chips using `from`, `to`, `free=1`, and `food=1` query parameters as applicable.
+- [x] Make active filters clear, support combining/resetting filters, and define the This week range consistently in the UI.
+- [x] Show initial loading, empty feed, no matches under filters, request failure, and retry states.
 
 ### Event details
 
-- [ ] Fetch details with `GET /api/events/:id` and handle unavailable/deleted/cancelled records gracefully.
-- [ ] Present title, description, start/end time, timezone, location, eligibility, cost, food, beginner suitability, registration deadline, organization, and relevant publication/update information.
-- [ ] Display absent facts as “Unknown”; show food as “Advertised,” “Not advertised,” or “Unknown.” Explain that “Not advertised” does not promise that no food exists.
-- [ ] Display evidence/uncertainties where relevant and preserve the event's source information.
-- [ ] Label `organizer-confirmed` as organizer-confirmed. Label `source-imported` according to its actual source, such as Imported from EngageSC; an import must never appear organizer-confirmed.
-- [ ] Display the flyer when present, with appropriate alternative text and an image-failure state. Offer the original source link when present; indicate when it is unknown.
-- [ ] Add a plain anchor to `/api/events/:id/calendar.ics` for Add to calendar.
-- [ ] Show Register only when `registrationUrl` exists, and link to that URL.
+- [x] Fetch details with `GET /api/events/:id` and handle unavailable/deleted/cancelled records gracefully.
+- [x] Present title, description, start/end time, timezone, location, eligibility, cost, food, beginner suitability, registration deadline, organization, and relevant publication/update information.
+- [x] Display absent facts as “Unknown”; show food as “Advertised,” “Not advertised,” or “Unknown.” Explain that “Not advertised” does not promise that no food exists.
+- [x] Display evidence/uncertainties where relevant and preserve the event's source information.
+- [x] Label `organizer-confirmed` as organizer-confirmed. Label `source-imported` according to its actual source, such as Imported from EngageSC; an import must never appear organizer-confirmed.
+- [x] Display the flyer when present, with appropriate alternative text and an image-failure state. Offer the original source link when present; indicate when it is unknown.
+- [x] Add a plain anchor to `/api/events/:id/calendar.ics` for Add to calendar.
+- [x] Show Register only when `registrationUrl` exists, and link to that URL.
 - [ ] Connect Save/Unsave to the shared saved-event state from Step 5.
 
 **Done when:** real API events can be filtered, opened, and inspected; unknown values and provenance stay accurate; source, registration, and calendar actions point to the correct resources.
+
+**Step 2 implementation and verification:** see the Step 2 run in `tests.md`. Discover and details use the real API; synthetic local test records are isolated in an explicit fixture server. Today/This week show upcoming and ongoing events, with Monday–Sunday weeks in Los Angeles time. The current server intentionally permits direct reads of cancelled events; details label them cancelled and suppress the Register action. Save/Unsave remains unchecked until Step 5; no working Save control is claimed. No Step 3 work started. Stopped here awaiting the user's instruction.
 
 ## Step 3 — Complete the organizer workflow
 

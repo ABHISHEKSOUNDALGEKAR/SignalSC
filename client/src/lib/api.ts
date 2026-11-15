@@ -1,4 +1,6 @@
-import type { EventsResponse } from '../../../shared/api';
+import type { EventResponse, EventsResponse } from '../../../shared/api';
+import type { Filters } from './events';
+import { eventsPath } from './events';
 
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly missing: string[] = []) {
@@ -44,10 +46,16 @@ export function errorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Unable to connect. Check your connection and try again.';
 }
 
-export async function getEvents(signal: AbortSignal): Promise<EventsResponse> {
-  const data = await apiRequest<EventsResponse>('/api/events', { signal });
+export async function getEvents(signal: AbortSignal, filters?: Filters): Promise<EventsResponse> {
+  const data = await apiRequest<EventsResponse>(filters ? eventsPath(filters) : '/api/events', { signal });
   if (!data || !Array.isArray(data.events)) {
     throw new ApiError(200, 'The event list could not be read. Please try again.');
   }
+  return data;
+}
+
+export async function getEvent(id: string, signal: AbortSignal): Promise<EventResponse> {
+  const data = await apiRequest<EventResponse>(`/api/events/${encodeURIComponent(id)}`, { signal });
+  if (!data?.event || data.event.id !== id) throw new ApiError(200, 'The event details could not be read. Please try again.');
   return data;
 }

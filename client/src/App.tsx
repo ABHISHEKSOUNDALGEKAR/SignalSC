@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { pages, readRoute, type Page } from './lib/navigation';
 import { Discover } from './screens/Discover';
-import { EventDetailShell, PlannedScreen } from './screens/Placeholders';
+import { PlannedScreen } from './screens/Placeholders';
+import { EventDetail } from './screens/EventDetail';
 
 const labels: Record<Page, string> = { discover: 'Discover', ask: 'Ask', saved: 'Saved', organizer: 'For organizers' };
 const introductions = {
@@ -16,9 +17,13 @@ export function App() {
   const [route, setRoute] = useState(() => readRoute(window.location.hash));
   const backHref = useRef(`#${route.page === 'event' ? 'discover' : route.page}`);
   const heading = useRef<HTMLHeadingElement>(null);
+  const currentRoute = useRef(route);
+  const discoverScroll = useRef(0);
   useEffect(() => {
     const onHashChange = () => {
       const next = readRoute(window.location.hash);
+      if (currentRoute.current.page === 'discover') discoverScroll.current = window.scrollY;
+      currentRoute.current = next;
       if (next.page !== 'event') backHref.current = `#${next.page}`;
       setRoute(next);
     };
@@ -29,6 +34,7 @@ export function App() {
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     heading.current?.focus({ preventScroll: true });
+    window.scrollTo(0, route.page === 'discover' ? discoverScroll.current : 0);
   }, [route]);
   const intro = introductions[route.page];
   return <>
@@ -40,7 +46,7 @@ export function App() {
       <h1 ref={heading} tabIndex={-1}>{intro.title}</h1><p className="intro">{intro.body}</p>
       {/* Preserve browsing state while viewing details or another destination. */}
       <div hidden={route.page !== 'discover'}><Discover /></div>
-      {route.page === 'event' ? <EventDetailShell route={route} backHref={backHref.current} /> : route.page !== 'discover' ? <PlannedScreen page={route.page} /> : null}
+      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page !== 'discover' ? <PlannedScreen page={route.page} /> : null}
     </main>
     <footer>Made for Trojans. Source-linked details. Unknowns stay unknown.</footer>
   </>;

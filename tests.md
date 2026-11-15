@@ -88,6 +88,7 @@ Use current/frozen future dates for normal cases so events do not silently becom
 ### Regression checks
 
 - [ ] Navigation, retry handling, and existing organizer/session controls still work where implemented.
+- [ ] From a scrolled feed, open a card: details start at the top. Return to browsing: filters and the clicked browsing position are retained.
 - [ ] Save controls are checked once Step 5 exists; until then, record that dependency as pending rather than claiming full detail completion.
 
 **Gate:** feed/details work with real responses; filters, unknowns, provenance, and actions pass. Backend violations are recorded for the server owner, not hidden by client-only filtering.
@@ -286,3 +287,42 @@ Completion gate: PASS or INCOMPLETE
 **Pending / not run:** mounted organizer/session UI, mutations, actual cards/filter/search races, saving, full detail actions, and PWA checks belong to Steps 2–7 and are not implemented or claimed tested. The existing organizer introductory navigation remains reachable. HTTP 401/422 handling is verified in the API foundation tests; live organizer behavior remains Step 3. Production/deployed browser journeys and assistive-device coverage remain later-step checks. No new test dependencies, shared contracts, server code, package files, or deployment were changed.
 
 **Completion gate: PASS for Step 1 only.** No Step 2 work started. Await the user's instruction before proceeding.
+
+### Step 2 — November 14, 2026
+
+**Scope / environment:** Discover, filters, event cards, and event details; branch `frontend-stuff`, working-tree changes based on `661e89c`. Node 22.17.1; Chrome on macOS at desktop 100% zoom and 320 × 725 responsive emulation. Browser/API integration ran at `http://127.0.0.1:5174` because port 5173 was already in use. The explicit fixture server used the real Express `apiRouter`, memory store, and calendar/flyer routes with labeled synthetic data. No real organizer records, model calls, database writes, shared contracts, package files, or server implementation were changed.
+
+**Commands / automated evidence — PASS:**
+
+- `node --import tsx --test client/tests/*.test.tsx`: 26 tests passed, including all 17 Step 1 regressions and 9 new Step 2 tests.
+- `TZ=Asia/Tokyo node --import tsx --test client/tests/events.test.tsx`: all 9 Step 2 tests passed with a non-campus process timezone.
+- New unit/render checks cover all 12 filter combinations/reset, Monday/Sunday and year rollover, Los Angeles midnight grouping/order, winter/summer and 23/25-hour DST days, actual server inclusive-lower/exclusive-upper window behavior including ongoing events, cost/food/provenance distinctions, detail facts/evidence/actions, absent/unsafe URLs and text, cancellation markup, and selected/encoded detail IDs.
+- `node --import tsx --test client/tests/live-step2.test.ts`: both real HTTP integration tests passed through Vite. Verified all 12 filter combinations, sorted published responses, past/cancelled exclusions from the feed, imported/detail records, missing-ID 404, no-match API response, valid/broken flyer routes, and calendar download headers/content with `DTSTART` matching the event's instant.
+- `npm run typecheck` and `npm run build`: passed. Repeated after the scroll-navigation fix.
+- `git diff --check`: passed at handoff.
+
+**Reproducing the explicit local integration setup:**
+
+1. Ensure port 3001 is available and no real backend is running there. Do not terminate another person's process without coordination. Do not configure `DATABASE_URL` or production mode for this harness; it refuses those settings.
+2. In one terminal, run `node --import tsx client/tests/serve-step2-fixtures.ts`. This serves only disposable in-memory fixtures, never activates them in the frontend bundle, and requires no organizer credentials. Optional `--empty` starts an empty store for manual empty-state checks.
+3. In a second terminal, run `npm run dev:client -- --port 5174 --strictPort`.
+4. Open `http://127.0.0.1:5174` and/or run the explicit live-test command above. The normal `.test.tsx` suite has no running-server dependency. Fixture dates derive from startup time; restart the harness for fresh upcoming records. A fixture without an end time disappears from the upcoming feed once its start passes, as expected.
+5. Stop the fixture server when finished. Start the normal app with `npm run dev` to use the actual development backend.
+
+**Browser cases / regression evidence — PASS:**
+
+- Live fixture feed initially showed five events in two Los Angeles date groups. Card ordering, free/$12.50/unknown costs, three food states, organizer confirmation, and distinct USC calendar/EngageSC import labels matched responses. A no-end-time event later aged out after its start, reducing the upcoming count as expected.
+- Today, This week, Free, and Food advertised worked alone; Today + Free + Food advertised narrowed the feed to one matching event. Reset restored the unfiltered feed; rapid filter changes settled on the selected state. Resource cancellation/out-of-order behavior remains covered by the foundation tests.
+- Opened the selected card and verified details, timestamps, eligibility, organization, food explanation, evidence and uncertainty text, source URL, flyer, and registration target. Back retained the active filter.
+- Unknown-details record showed Unknown values and absent-source/flyer messages without a Register action. Broken flyer showed a recoverable image-unavailable message. A nonexistent event showed an unavailable-event state; a cancelled event showed explicit cancellation and no Register action.
+- Add to calendar initiated a browser download. Real HTTP tests independently verified the attachment, calendar content, and event instant. External registration/source destination URLs were checked in rendered links; no external form was submitted. Independent calendar-application import remains Step 7.
+- Inspected cards, long imported titles, wrapped source URLs, facts, and evidence at 320px. No visible horizontal page overflow; controls remained usable. Phone behavior was emulated, not tested on a physical device.
+- Found and fixed scroll carryover: opening a card from a scrolled feed now starts details at the top; Back restores the clicked browsing position. Repeated this exact browser journey after the fix.
+- DevTools Offline + Refresh events showed the recoverable network error. Restoring No throttling + Try again recovered successfully. After stopping fixture serving, the available empty development feed showed “No upcoming events yet”; Today displayed the distinct filtered no-match message, and reset restored the empty-feed message.
+- Ask, Saved, and Organizer still open their explicitly pending screens; no organizer session UI is implemented yet. Route changes focus the heading. Console observations showed expected errors only for deliberately broken image/missing event/offline requests, with no observed app exception.
+
+**Environment issues / recovery:** sandbox network restrictions initially prevented the Vite/listener and live HTTP checks; reruns outside the sandbox passed. The existing localhost Chrome tab became blank while Vite continued serving HTML. A fresh tab using `127.0.0.1:5174` rendered and supported the checks above. One transient screen-capture failure recovered on the next observation.
+
+**Pending dependencies / limitations:** Save/Unsave controls and persistence remain Step 5 and are intentionally not marked complete in `STEP.md`. Published-deployment verification, full organizer workflows, other browser engines, screen readers, and physical phones remain later-step checks. The server's existing behavior intentionally keeps cancelled event details readable; feed exclusion and the cancellation notice passed. No backend blocker found in this step.
+
+**Completion gate: PASS for the implemented Step 2 scope; Save integration remains pending Step 5.** Stop here; do not begin Step 3 until instructed.
