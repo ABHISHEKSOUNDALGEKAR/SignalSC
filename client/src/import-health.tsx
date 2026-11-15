@@ -5,25 +5,8 @@ import type {
 } from '../../shared/api';
 import { api } from './api';
 import { dateLabel, ErrorNotice } from './common';
-import { feedHealthAlert, feedHealthAlertLabel, reconcileFeedAlerts } from './feed-alerts';
-
-type AlertSettings = { enabled: boolean; alertedSources: ('engagesc' | 'usc-calendar')[] };
-function settingsKey(organizationId: string) { return `signalsc-feed-alerts:v1:${organizationId}`; }
-function readAlertSettings(organizationId: string): AlertSettings {
-  try {
-    const data = JSON.parse(localStorage.getItem(settingsKey(organizationId)) ?? 'null');
-    if (data && typeof data === 'object') return {
-      enabled: data.enabled === true,
-      alertedSources: Array.isArray(data.alertedSources)
-        ? data.alertedSources.filter((source: unknown): source is AlertSettings['alertedSources'][number] => source === 'engagesc' || source === 'usc-calendar')
-        : [],
-    };
-  } catch { /* Corrupt or blocked storage keeps alerts off. */ }
-  return { enabled: false, alertedSources: [] };
-}
-function writeAlertSettings(organizationId: string, settings: AlertSettings) {
-  localStorage.setItem(settingsKey(organizationId), JSON.stringify(settings));
-}
+import { feedHealthAlert, feedHealthAlertLabel } from './feed-alerts';
+import { deliverFeedAlerts, FEED_ALERT_PREFERENCES_CHANGED, readAlertSettings, setAlertsEnabled as saveAlertsEnabled } from './feed-alert-delivery';
 
 const feedFailureLabels: Record<FeedImportFailureCategory, string> = {
   request_failed: 'Feed request failed',
@@ -70,24 +53,6 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
   const [alertMessage, setAlertMessage] = useState('');
   const [alertStorageError, setAlertStorageError] = useState(false);
   const requestInFlight = useRef(false);
-  function notifyForHealth(response: ImportHealthResponse) {
-    const settings = readAlertSettings(organizationId);
-    if (!settings.enabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-    const current = reconcileFeedAlerts(response.feedImports, settings.alertedSources);
-    // Persist the active outage set before displaying anything. Another organizer tab
-    // sees this update and will not send the same alert again.
-    writeAlertSettings(organizationId, { enabled: true, alertedSources: current.activeSources });
-    for (const alert of current.notifications) {
-      const source = alert.source === 'engagesc' ? 'EngageSC' : 'USC Calendar';
-      try {
-        const notification = new Notification(`${source} calendar needs attention`, {
-          body: feedHealthAlertLabel(alert.category),
-          tag: `signalsc-feed-alert:${organizationId}:${alert.source}`,
-        });
-        notification.onclick = () => { window.focus(); notification.close(); };
-      } catch { setAlertMessage('The browser could not show a notification. Check this calendar’s status below.'); }
-    }
-  }
   const [oversized, setOversized] = useState<Partial<Record<ImportedEventSource, OversizedImportedEvent[]>>>({});
   const [oversizedLoading, setOversizedLoading] = useState<ImportedEventSource | null>(null);
   const [oversizedErrors, setOversizedErrors] = useState<Partial<Record<ImportedEventSource, string>>>({});
@@ -98,13 +63,18 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
     try {
       const response = await api.importHealth();
       setData(response);
-      try { notifyForHealth(response); } catch { setAlertStorageError(true); }
+      try { await deliverFeedAlerts(organizationId, response.feedImports); }
+      catch { setAlertMessage('The browser alert could not be delivered or saved. Check browser permissions and site storage; the next check will retry.'); }
     }
     catch (e) { setData(null); setError(e instanceof Error ? e.message : 'Import health could not be loaded.'); }
     finally { requestInFlight.current = false; setLoading(false); }
   }
   useEffect(() => {
-    try { setAlertsEnabled(readAlertSettings(organizationId).enabled); } catch { setAlertStorageError(true); }
+    const updateSettings = () => {
+      try { setAlertsEnabled(readAlertSettings(organizationId).enabled); setAlertStorageError(false); }
+      catch { setAlertStorageError(true); }
+    };
+    updateSettings();
     void load();
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void load();
@@ -112,10 +82,14 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
     const refresh = () => { if (document.visibilityState === 'visible') void load(); };
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
+    window.addEventListener('storage', updateSettings);
+    window.addEventListener(FEED_ALERT_PREFERENCES_CHANGED, updateSettings);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
+      window.removeEventListener('storage', updateSettings);
+      window.removeEventListener(FEED_ALERT_PREFERENCES_CHANGED, updateSettings);
     };
   }, [organizationId]);
   async function enableAlerts() {
@@ -132,11 +106,10 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
           : 'Notification permission was not granted. You can enable it in browser settings.');
         return;
       }
-      const settings = readAlertSettings(organizationId);
-      writeAlertSettings(organizationId, { ...settings, enabled: true });
+      saveAlertsEnabled(organizationId, true);
       setAlertsEnabled(true);
-      if (data) notifyForHealth(data);
       setAlertMessage('Browser alerts are on. Keep SignalSC open and signed in to receive them.');
+      if (data) await deliverFeedAlerts(organizationId, data.feedImports);
     } catch {
       setAlertStorageError(true);
       setAlertMessage('Alerts could not be saved in this browser. Allow site storage and try again.');
@@ -144,7 +117,7 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
   }
   function disableAlerts() {
     try {
-      writeAlertSettings(organizationId, { enabled: false, alertedSources: [] });
+      saveAlertsEnabled(organizationId, false);
       setAlertsEnabled(false);
       setAlertMessage('Browser alerts are off.');
       setAlertStorageError(false);
@@ -176,7 +149,7 @@ export function ImportHealthPanel({ organizationId }: { organizationId: string }
     <h3>Feed imports</h3>
     <p className="event-meta">Feed fetching and event saving are reported separately from AI detail recovery. Status contains safe categories only; feed URLs and raw errors are never shown. Freshness reflects the last fully completed feed import.</p>
     <div className="import-alert-controls">
-      <div><strong>Calendar health alerts</strong><p className="event-meta">Opt in to browser notifications for stale feeds or two consecutive failures. Checks run while you are signed in with this page open.</p></div>
+      <div><strong>Calendar health alerts</strong><p className="event-meta">Opt in on this browser for stale feeds or two consecutive failures. Checks run about once a minute while you are signed in with any SignalSC page open, not after all tabs are closed. Each outage alerts once per organization on this browser.</p></div>
       {alertsEnabled
         ? <button className="btn btn-outline" type="button" onClick={disableAlerts}>Turn off alerts</button>
         : <button className="btn btn-primary" type="button" onClick={() => void enableAlerts()}>Enable browser alerts</button>}

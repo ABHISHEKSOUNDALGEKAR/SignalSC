@@ -6,7 +6,7 @@ delete process.env.MODEL_API_KEY;
 delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
 const { MemoryStore } = await import('../server/store');
 const { importFeed } = await import('../server/importer');
-const { readImportHealth } = await import('../server/import-health');
+const { readImportHealth, feedImportHealthRecorder } = await import('../server/import-health');
 
 const feedUrl = 'https://feed.test/private-calendar?access_token=private-value';
 const now = new Date('2035-01-01T00:00:00.000Z');
@@ -113,4 +113,30 @@ test('repeated safe failure counts rise once per failed attempt and reset only a
   assert.equal(afterRecovery.consecutiveFailures, 1);
   assert.equal(afterRecovery.lastFailureCategory, 'request_failed');
   assert.doesNotMatch(JSON.stringify([first, repeated, changed, recovered, afterRecovery]), /private detail|proxy page|feed\.test|access_token/);
+});
+
+test('saving one attempt twice does not count twice, and a pending import is not a recovery', async () => {
+  const store = new MemoryStore();
+  const failed = feedImportHealthRecorder(store, 'engagesc', now);
+  failed.fetchFailed('invalid_feed');
+  await failed.save();
+  await failed.save();
+  let state = (await readImportHealth(store, now.getTime())).feedImports[0];
+  assert.equal(state.consecutiveFailures, 1);
+  const next = feedImportHealthRecorder(store, 'engagesc', new Date(now.getTime() + 60_000));
+  await next.save();
+  next.fetchSucceeded();
+  await next.save();
+  state = (await readImportHealth(store, now.getTime() + 60_000)).feedImports[0];
+  assert.equal(state.consecutiveFailures, 1);
+  assert.equal(state.lastFailureCategory, 'invalid_feed');
+  next.saveFailed();
+  await next.save();
+  await next.save();
+  state = (await readImportHealth(store, now.getTime() + 60_000)).feedImports[0];
+  assert.equal(state.consecutiveFailures, 2);
+  assert.equal(state.lastFailureCategory, 'event_save_failed');
+  await failed.save();
+  assert.equal((await readImportHealth(store, now.getTime() + 60_000)).feedImports[0].consecutiveFailures, 2,
+    'an older overlapping attempt cannot replace the latest failure count');
 });

@@ -126,6 +126,8 @@ export function feedImportHealthRecorder(store: Store, source: Source, now: Date
           const value: FeedSnapshot = {
             ...snapshot,
             lastCompletedAt: completedAt,
+            lastFailureCategory: snapshot.lastCompletedAt ? null
+              : snapshot.lastFailureCategory ?? (parsed.success ? parsed.data.lastFailureCategory : null),
             consecutiveFailures: snapshot.lastCompletedAt ? 0
               : snapshot.lastFailureCategory
                 ? parsed.success ? parsed.data.consecutiveFailures + (sameAttemptAlreadyFailed ? 0 : 1) : 1

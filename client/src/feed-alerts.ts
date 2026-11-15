@@ -1,4 +1,4 @@
-import type { FeedImportAlertCategory, FeedImportFailureCategory, FeedImportHealth } from '../../shared/api';
+import type { FeedImportAlertCategory, FeedImportHealth } from '../../shared/api';
 
 export type FeedHealthAlert = {
   source: FeedImportHealth['source'];
@@ -18,6 +18,7 @@ export function feedHealthAlert(feed: FeedImportHealth): FeedHealthAlert | null 
 export function reconcileFeedAlerts(
   feeds: FeedImportHealth[],
   previouslyAlerted: FeedImportHealth['source'][],
+  previousCompletions: Partial<Record<FeedImportHealth['source'], string | null>> = {},
 ): FeedAlertState {
   const active = feeds.flatMap(feed => {
     const alert = feedHealthAlert(feed);
@@ -26,7 +27,9 @@ export function reconcileFeedAlerts(
   const previously = new Set(previouslyAlerted);
   return {
     activeSources: active.map(alert => alert.source),
-    notifications: active.filter(alert => !previously.has(alert.source)),
+    notifications: active.filter(alert => !previously.has(alert.source)
+      || (Object.hasOwn(previousCompletions, alert.source)
+        && previousCompletions[alert.source] !== feeds.find(feed => feed.source === alert.source)?.lastCompletedAt)),
   };
 }
 
@@ -41,6 +44,3 @@ export function feedHealthAlertLabel(category: FeedImportAlertCategory): string 
   return labels[category];
 }
 
-export function feedFailureCategory(feed: FeedImportHealth): FeedImportFailureCategory | null {
-  return feed.lastFailureCategory;
-}

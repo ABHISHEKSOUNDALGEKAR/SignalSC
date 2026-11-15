@@ -56,3 +56,9 @@ test('independent calendars alert and recover independently', () => {
   assert.deepEqual(oneRecovered.activeSources, ['usc-calendar']);
   assert.deepEqual(oneRecovered.notifications, []);
 });
+
+test('a completed import between checks starts a new outage even if the healthy interval was not polled', () => {
+  const nextOutage = feed({ freshness: 'stale', lastCompletedAt: '2035-01-02T00:00:00.000Z' });
+  const result = reconcileFeedAlerts([nextOutage], ['engagesc'], { engagesc: '2035-01-01T00:00:00.000Z' });
+  assert.deepEqual(result.notifications, [{ source: 'engagesc', category: 'stale' }]);
+});

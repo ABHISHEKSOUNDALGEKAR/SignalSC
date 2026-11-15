@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AskPage, DiscoverPage, EventDetailPage, SavedPage } from './pages';
 import { OrganizerPage } from './organizer';
 import { RegistrationReturnPrompt } from './registration';
+import { FeedAlertMonitor } from './feed-alert-monitor';
 import { confirmLeavingWithUnsavedChanges, hasUnsavedChanges } from './unsaved-changes';
 import './style.css';
 
@@ -110,6 +111,7 @@ function App() {
     {route.page === 'event' && <EventDetailPage key={route.id} id={route.id} />}
     {route.page === 'organizer' && <OrganizerPage />}
     <RegistrationReturnPrompt />
+    <FeedAlertMonitor />
     <footer className="footer"><span>Made for Trojans. Source-linked details. Unknowns stay unknown.</span><span className="mono">LOS ANGELES · 34.0224° N</span></footer>
   </div>;
 }
