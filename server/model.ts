@@ -22,6 +22,14 @@ const budget = new ModelBudget(
   readModelLimit('MODEL_MAX_CONCURRENT', 4, 1),
 );
 
+export function reserveModelRetryAttempt(): void {
+  try { budget.recordAttempt(); }
+  catch (error) {
+    if (error instanceof ModelCapacityError) throw new ModelLimitError(error.message);
+    throw error;
+  }
+}
+
 // Returns parsed JSON from the model. Callers must validate the shape.
 export async function completeJson(messages: ChatMessage[], maxTokens = 1500): Promise<unknown> {
   if (!modelConfigured) throw new ModelUnavailableError('Model is not configured.');

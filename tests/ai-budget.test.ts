@@ -63,6 +63,16 @@ test('concurrency survives window reset and release is idempotent', () => {
   assert.throws(() => gate.acquire(), /budget/);
 });
 
+test('retry attempts consume request budget without taking another concurrency slot', () => {
+  const gate = new ModelBudget(2, 100, 1, () => 0);
+  const release = gate.acquire();
+  gate.recordAttempt();
+  assert.throws(() => gate.recordAttempt(), ModelCapacityError);
+  assert.throws(() => gate.acquire(), /budget/);
+  release();
+  assert.throws(() => gate.acquire(), /budget/);
+});
+
 test('invalid configuration fails closed without echoing its value', () => {
   const name = 'TEST_MODEL_LIMIT';
   try {

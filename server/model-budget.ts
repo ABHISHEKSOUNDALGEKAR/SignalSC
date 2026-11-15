@@ -24,12 +24,22 @@ export class ModelBudget {
     this.resetAt = clock() + windowMs;
   }
 
-  acquire(): () => void {
-    const now = this.clock();
+  private resetWindow(now: number) {
     if (now >= this.resetAt) {
       this.used = 0;
       this.resetAt = now + this.windowMs;
     }
+  }
+
+  private reserveRequest(now: number) {
+    this.resetWindow(now);
+    if (this.used >= this.requests) throw new ModelCapacityError('Model request budget is exhausted.');
+    this.used++;
+  }
+
+  acquire(): () => void {
+    const now = this.clock();
+    this.resetWindow(now);
     if (this.used >= this.requests) throw new ModelCapacityError('Model request budget is exhausted.');
     if (this.active >= this.concurrency) throw new ModelCapacityError('Model concurrency limit is reached.');
     // Reserve synchronously, before fetch can yield. Failed provider attempts
@@ -40,5 +50,11 @@ export class ModelBudget {
     return () => {
       if (!released) { this.active--; released = true; }
     };
+  }
+
+  // Reserve another outbound attempt within an already-admitted logical call.
+  // It consumes request budget but shares that call's concurrency slot.
+  recordAttempt(): void {
+    this.reserveRequest(this.clock());
   }
 }

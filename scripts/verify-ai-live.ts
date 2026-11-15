@@ -10,6 +10,7 @@ import {
   assertDegradedFlyer, assertSourceConflict, degradedFlyerCases, sourceConflictCases,
 } from './live-flyer-cases';
 import { assertMultilingualFlyer, multilingualFlyers } from './multilingual-flyer-cases';
+import { createLiveFetchObserver, runObservedLiveCheck } from './live-ai-observer';
 
 // Opt-in only: this script spends real provider credits. Fixtures never enter
 // the running app or its database, and actual organizer credentials are unused.
@@ -31,7 +32,7 @@ process.env.ORGANIZER_ACCESS_CODES = 'Live Test=isolated-live-test';
 process.env.SESSION_SECRET = 'isolated-live-verification-session';
 
 const { extractDraft, emptyDraft } = await import('../server/extract');
-const { modelConfigured } = await import('../server/model');
+const { modelConfigured, reserveModelRetryAttempt } = await import('../server/model');
 const { apiRouter } = await import('../server/routes');
 const { createStore } = await import('../server/store');
 assert.equal(modelConfigured, true, 'A provider key must be configured');
@@ -39,91 +40,44 @@ assert.equal(modelConfigured, true, 'A provider key must be configured');
 // Observe real responses without replacing them. Count successful JSON model
 // completions so rule/template fallbacks cannot be mistaken for live success.
 const networkFetch = globalThis.fetch;
-let completions = 0;
-let attempts = 0;
-let accessDenied = false;
-const maxNetworkAttempts = searchOnly ? 1 : 3;
-globalThis.fetch = async (input, init) => {
-  // Live evaluation may wait longer than an interactive app request. Replace
-  // its signal only here; the application's 45-second timeout is unchanged.
-  const isCompletion = String(input).endsWith('/chat/completions');
-  let response: Response | undefined;
-  for (let retry = 0; retry < (isCompletion ? maxNetworkAttempts : 1); retry++) {
-    if (isCompletion) attempts++;
-    try {
-      response = await networkFetch(input, isCompletion
-        ? { ...init, signal: AbortSignal.timeout(180_000) }
-        : init);
-      if (isCompletion && response.status === 429 && retry < maxNetworkAttempts - 1) {
-        const retryAfter = response.headers.get('retry-after');
-        const seconds = retryAfter && /^\d+$/.test(retryAfter)
-          ? Math.max(65, Math.min(Number(retryAfter), 180))
-          : 65;
-        await response.body?.cancel();
-        console.log(`RETRY live provider rate limit: waiting ${seconds} seconds`);
-        await delay(seconds * 1000);
-        continue;
-      }
-      break;
-    } catch {
-      if (!isCompletion || retry === maxNetworkAttempts - 1) throw new Error('Live provider could not be reached after bounded network attempts.');
-      console.log('RETRY live provider transport failure (may spend additional credits)');
-    }
-  }
-  assert.ok(response);
-  if (String(input).endsWith('/chat/completions')) {
-    if (response.status === 401 || response.status === 403) accessDenied = true;
-    if (response.status !== 200) console.log(`FAIL live provider HTTP ${response.status}`);
-    assert.equal(response.status, 200, `Live provider returned HTTP ${response.status}`);
-    const body = await response.clone().json();
-    if (body.choices?.[0]?.finish_reason !== 'stop') console.log('FAIL live provider completion was incomplete');
-    assert.equal(body.choices?.[0]?.finish_reason, 'stop', 'Model output must not be truncated');
-    JSON.parse(body.choices?.[0]?.message?.content ?? '');
-    completions++;
-  }
-  return response;
-};
+const liveObserver = createLiveFetchObserver({
+  fetcher: networkFetch,
+  admitRetry: reserveModelRetryAttempt,
+  maxNetworkAttempts: searchOnly ? 1 : 3,
+  timeoutMs: 180_000,
+  logger: message => console.log(message),
+  sleep: milliseconds => delay(milliseconds),
+});
+globalThis.fetch = liveObserver.fetch;
 
 const now = new Date('2026-11-20T12:00:00-08:00');
 const failedChecks: string[] = [];
 async function check(name: string, run: () => Promise<void>) {
   if (searchOnly && !['constrained search', 'answer with missing facts', 'no-match search'].includes(name)) return;
-  if (accessDenied) {
-    failedChecks.push(name);
-    console.log(`BLOCKED live ${name}: provider denied access; no further request sent`);
-    return;
-  }
-  try {
-    await run();
-  } catch (error) {
-    // Assertions can contain generated content. Report only the synthetic case
-    // label, never raw provider output, while allowing independent cases to run.
-    failedChecks.push(name);
-    const location = error instanceof Error
-      ? error.stack?.match(/(?:verify-ai-live|live-flyer-cases|multilingual-flyer-cases)\.ts:\d+/)?.[0]
-      : undefined;
-    console.log(`FAIL live ${name} (${completions} JSON completions observed, ${attempts} outbound attempts${location ? `; ${location}` : ''})`);
-  }
+  await runObservedLiveCheck(name, run, liveObserver.stats, failedChecks, message => console.log(message));
 }
 const knownText = 'Robotics Night. November 20, 2026, 6:30 PM to 8:00 PM. Leavey Library. Free admission. Pizza provided. Beginners welcome. Open to all. RSVP https://example.com/rsvp';
 const known = searchOnly
   ? { draft: { ...emptyDraft(null), title: 'Robotics Night', startsAt: '2026-11-20T18:30:00-08:00', endsAt: '2026-11-20T20:00:00-08:00', location: 'Leavey Library', costCents: 0, food: 'advertised' as const, beginnerFriendly: true, eligibility: 'Open to all', registrationUrl: 'https://example.com/rsvp' } }
   : await extractDraft({ text: knownText }, now);
 if (!searchOnly) {
-  assert.equal(known.extractedBy, 'model');
-  assert.equal(known.draft.title, 'Robotics Night');
-  assert.equal(known.draft.startsAt, '2026-11-20T18:30:00-08:00');
-  assert.equal(known.draft.endsAt, '2026-11-20T20:00:00-08:00');
-  assert.equal(known.draft.location, 'Leavey Library');
-  assert.equal(known.draft.costCents, 0);
-  assert.equal(known.draft.food, 'advertised');
-  assert.equal(known.draft.beginnerFriendly, true);
-  assert.match(known.draft.eligibility ?? '', /open to all/i);
-  assert.equal(known.draft.registrationUrl, 'https://example.com/rsvp');
-  assert.equal(known.draft.registrationDeadline, null);
-  assert.ok(known.draft.evidence.length);
-  assertEvidenceInSource(known.draft.evidence, knownText, 'announcement');
-  console.log('PASS live text extraction: printed facts and source evidence');
+  const knownExtraction = known as Awaited<ReturnType<typeof extractDraft>>;
+  await check('text extraction', async () => {
+    assert.equal(knownExtraction.extractedBy, 'model');
+    assert.equal(knownExtraction.draft.title, 'Robotics Night');
+    assert.equal(knownExtraction.draft.startsAt, '2026-11-20T18:30:00-08:00');
+    assert.equal(knownExtraction.draft.endsAt, '2026-11-20T20:00:00-08:00');
+    assert.equal(knownExtraction.draft.location, 'Leavey Library');
+    assert.equal(knownExtraction.draft.costCents, 0);
+    assert.equal(knownExtraction.draft.food, 'advertised');
+    assert.equal(knownExtraction.draft.beginnerFriendly, true);
+    assert.match(knownExtraction.draft.eligibility ?? '', /open to all/i);
+    assert.equal(knownExtraction.draft.registrationUrl, 'https://example.com/rsvp');
+    assert.equal(knownExtraction.draft.registrationDeadline, null);
+    assert.ok(knownExtraction.draft.evidence.length);
+    assertEvidenceInSource(knownExtraction.draft.evidence, knownText, 'announcement');
+    console.log('PASS live text extraction: printed facts and source evidence');
+  });
 }
 
 function normalizeEvidence(text: string) {
@@ -257,13 +211,13 @@ for (const fixture of multilingualFlyers) {
   // image requests receive no transcript that could conceal an OCR failure.
   for (const mode of ['text', 'image'] as const) {
     await check(`${fixture.id} ${mode}`, async () => {
-    const before = completions;
+    const before = liveObserver.stats.completions;
     const input = mode === 'text'
       ? { text: fixture.sourceLines.join('\n') }
       : { imageBase64: image.toString('base64'), mimeType: 'image/png' };
     const result = await extractDraft(input, now);
     assert.equal(result.extractedBy, 'model', `${fixture.id} ${mode}: fallback cannot pass`);
-    assert.equal(completions - before, 1, `${fixture.id} ${mode}: requires one real JSON completion`);
+    assert.equal(liveObserver.stats.completions - before, 1, `${fixture.id} ${mode}: requires one real JSON completion`);
     assertMultilingualFlyer(result.draft, fixture);
     console.log(`PASS live ${fixture.id} ${mode}: printed facts, attendance, and uncertainties`);
     });
@@ -314,7 +268,7 @@ try {
   assert.equal(health.modelConfigured, true);
 
   await check('constrained search', async () => {
-  const beforeSearch = completions;
+  const beforeSearch = liveObserver.stats.completions;
   const constrained = await ask('Find free robotics events with food tonight after 5 PM that explicitly welcome beginners.');
   assert.equal(constrained.interpretedBy, 'model');
   assert.equal(constrained.constraints.freeOnly, true);
@@ -322,18 +276,18 @@ try {
   assert.equal(constrained.constraints.beginnerOnly, true);
   assert.equal(constrained.constraints.afterMinutes, 1020);
   assert.deepEqual(constrained.results.map(r => r.event.id), ['eligible']);
-  assert.equal(completions - beforeSearch, 2, 'Interpretation AND answer must use the real provider');
+  assert.equal(liveObserver.stats.completions - beforeSearch, 2, 'Interpretation AND answer must use the real provider');
   assert.match(constrained.answer, /Robotics Night/i);
   assert.doesNotMatch(constrained.answer, /^Found \d+ matching/);
   console.log('PASS live constrained interpretation and answer: model interpreted constraints and selected only the eligible synthetic event');
   });
 
   await check('answer with missing facts', async () => {
-  const beforeUnknown = completions;
+  const beforeUnknown = liveObserver.stats.completions;
   const unknown = await ask('What astronomy events are happening tonight?');
   assert.equal(unknown.interpretedBy, 'model');
   assert.deepEqual(unknown.results.map(r => r.event.id), ['astronomy']);
-  assert.equal(completions - beforeUnknown, 2);
+  assert.equal(liveObserver.stats.completions - beforeUnknown, 2);
   assertUnknown(unknown.results[0].event);
   const prose = [unknown.answer, ...unknown.results.map(r => r.reason)].join(' ');
   assert.doesNotMatch(prose, /\b(?:is free|free admission|beginners welcome|USC students only|at Leavey)\b/i);
@@ -341,17 +295,17 @@ try {
   });
 
   await check('no-match search', async () => {
-  const beforeEmpty = completions;
+  const beforeEmpty = liveObserver.stats.completions;
   const noMatch = await ask('Find free astronomy events tonight.');
   assert.equal(noMatch.interpretedBy, 'model');
   assert.equal(noMatch.noMatch, true);
   assert.deepEqual(noMatch.results, []);
-  assert.equal(completions - beforeEmpty, 1, 'No-match must not ask the model to invent an answer');
+  assert.equal(liveObserver.stats.completions - beforeEmpty, 1, 'No-match must not ask the model to invent an answer');
   console.log('PASS live no-match: unknown cost excluded; no invented event or answer call');
   });
-  console.log(`Live evaluation observed ${completions} real JSON completions from ${attempts} outbound attempts; ${failedChecks.length} failed or blocked checks`);
+  console.log(`Live evaluation observed ${liveObserver.stats.completions} real JSON completions from ${liveObserver.stats.attempts} outbound attempts; ${failedChecks.length} failed or blocked checks`);
   assert.equal(failedChecks.length, 0, `Live checks failed: ${failedChecks.join(', ')}`);
-  console.log(`PASS live ${searchOnly ? 'baseline extraction and search' : 'full'} verification complete: ${completions} real JSON completions from ${attempts} outbound attempts; isolated fixtures only`);
+  console.log(`PASS live ${searchOnly ? 'baseline extraction and search' : 'full'} verification complete: ${liveObserver.stats.completions} real JSON completions from ${liveObserver.stats.attempts} outbound attempts; isolated fixtures only`);
 } finally {
   globalThis.fetch = networkFetch;
   server.closeAllConnections();
