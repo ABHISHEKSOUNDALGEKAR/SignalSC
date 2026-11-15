@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AskPage, DiscoverPage, EventDetailPage, SavedPage } from './pages';
 import { OrganizerPage } from './organizer';
+import { AboutPage } from './about';
 import { RegistrationReturnPrompt } from './registration';
 import { FeedAlertMonitor } from './feed-alert-monitor';
 import { confirmLeavingWithUnsavedChanges, hasUnsavedChanges } from './unsaved-changes';
@@ -14,7 +15,7 @@ function readRoute() {
     try { return { page: 'event', id: decodeURIComponent(parts.slice(1).join('/')) }; }
     catch { return { page: 'event', id: parts.slice(1).join('/') }; }
   }
-  if (['discover', 'saved', 'organizer'].includes(parts[0] ?? '')) return { page: parts[0], id: '' };
+  if (['discover', 'saved', 'organizer', 'about'].includes(parts[0] ?? '')) return { page: parts[0], id: '' };
   return { page: 'ask', id: '' };
 }
 function App() {
@@ -103,6 +104,7 @@ function App() {
         <a className={`nav-link ${active === 'discover' ? 'active' : ''}`} aria-current={current('discover')} href="#/discover">Discover</a>
         <a className={`nav-link ${active === 'saved' ? 'active' : ''}`} aria-current={current('saved')} href="#/saved">Saved</a>
         <a className={`nav-link organizer ${active === 'organizer' ? 'active' : ''}`} aria-current={current('organizer')} href="#/organizer">Organizers</a>
+        <a className={`nav-link ${active === 'about' ? 'active' : ''}`} aria-current={current('about')} href="#/about">About</a>
       </nav>
     </header>
     {route.page === 'ask' && <AskPage />}
@@ -110,9 +112,10 @@ function App() {
     {route.page === 'saved' && <SavedPage />}
     {route.page === 'event' && <EventDetailPage key={route.id} id={route.id} />}
     {route.page === 'organizer' && <OrganizerPage />}
+    {route.page === 'about' && <AboutPage />}
     <RegistrationReturnPrompt />
     <FeedAlertMonitor />
-    <footer className="footer"><span>Made for Trojans. Source-linked details. Unknowns stay unknown.</span><span className="mono">LOS ANGELES · 34.0224° N</span></footer>
+    <footer className="footer"><span>Made for Trojans. Source-linked details. Unknowns stay unknown. <a className="source-link" href="#/about">About and contact</a></span><span className="mono">LOS ANGELES · 34.0224° N</span></footer>
   </div>;
 }
 

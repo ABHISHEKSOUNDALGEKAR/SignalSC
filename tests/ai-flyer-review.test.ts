@@ -130,9 +130,9 @@ test('a complete flyer keeps quoted values and gets no notes when the review qui
     isFree: true, costDollars: null, food: 'advertised', beginnerFriendly: true,
     registrationUrl: 'https://example.com/rsvp', registrationDeadlineDate: '2026-11-18', registrationDeadlineTime: null,
     evidence: [
-      { field: 'endTime', excerpt: '6:00 PM – 7:30 PM' }, { field: 'food', excerpt: 'Dinner provided' },
+      { field: 'WHEN', excerpt: '6:00 PM – 7:30 PM' }, { field: 'COST', excerpt: 'Free · Dinner provided' },
       { field: 'isFree', excerpt: 'Free' }, { field: 'eligibility', excerpt: 'Open to all USC students' },
-      { field: 'registrationDeadline', excerpt: 'RSVP by Wednesday, November 18' },
+      { field: 'RSVP', excerpt: 'RSVP by Wednesday, November 18' },
     ],
     uncertainties: [],
   };
