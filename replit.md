@@ -9,6 +9,7 @@
 - Keep `PORT` unset or set to `3001` during development so the API matches the Vite proxy.
 - Check the API through `/api/health`.
 - Run `npm run build` to type-check and build the frontend and server. `npm start` serves the built app and API together on `PORT` (default 3001).
+- After task merges, `scripts/post-merge.sh` restores locked dependencies with `npm ci` and runs the type-checked build. Replit then restarts running workflows; the server initializes its existing database tables at startup.
 
 ## Configuration and current limitations
 
