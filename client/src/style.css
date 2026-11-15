@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
 
 .discover-search { margin: 0 0 24px; }
+.registration-dialog { width: min(540px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); color: var(--ink); box-shadow: 0 20px 70px #21181440; }
+.registration-dialog::backdrop { background: #21181480; }
+.registration-dialog h2 { font-family: 'Playfair Display', Georgia, serif; font-size: 30px; line-height: 1.15; margin: 14px 0; }
+.registration-event-title { font-weight: 600; }
+.registration-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.library-move { margin: 8px 0 12px; }
 .discover-search-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .discover-search-controls input { flex: 1 1 240px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line, #ded8cb); border-radius: 12px; background: var(--paper, #fffdf7); color: inherit; font: inherit; }
 

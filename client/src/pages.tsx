@@ -5,6 +5,10 @@ import { api, ApiError } from './api';
 import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, locationLabel, money, unknown } from './common';
 import { FeedbackForm } from './feedback';
 import { readBrowserValue } from './storage';
+import {
+  answerRegistration, moveRegistrationToSaved, readRegistrations, REGISTRATION_CHANGE,
+  startRegistrationCheck,
+} from './registration-store';
 import { campusInput, campusInstant, campusRange as dateQuery } from './time';
 
 export function AskPage() {
@@ -278,6 +282,7 @@ export function EventDetailPage({ id }: { id: string }) {
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [registered, setRegistered] = useState(false);
   const [saveError, setSaveError] = useState('');
   const reload = () => {
     setLoading(true); setError(''); setNotFound(false);
@@ -286,7 +291,24 @@ export function EventDetailPage({ id }: { id: string }) {
       else setError(e instanceof Error ? e.message : 'This event could not be loaded.');
     }).finally(() => setLoading(false));
   };
-  useEffect(() => { reload(); const ids = readSaved(); setSaved(ids?.includes(id) ?? false); }, [id]);
+  useEffect(() => {
+    reload();
+    const updateLibrary = () => {
+      const ids = readSaved();
+      try {
+        const isRegistered = readRegistrations().registered.includes(id);
+        setRegistered(isRegistered);
+        setSaved(!isRegistered && (ids?.includes(id) ?? false));
+      } catch { setRegistered(false); setSaved(ids?.includes(id) ?? false); }
+    };
+    updateLibrary();
+    window.addEventListener('storage', updateLibrary);
+    window.addEventListener(REGISTRATION_CHANGE, updateLibrary);
+    return () => {
+      window.removeEventListener('storage', updateLibrary);
+      window.removeEventListener(REGISTRATION_CHANGE, updateLibrary);
+    };
+  }, [id]);
   const backLink = <a href="#/discover" className="nav-link" style={{ paddingLeft: 0 }}>← Back to Discover</a>;
   if (loading) return <main id="main-content" tabIndex={-1} className="page">{backLink}<LoadingList count={2} /></main>;
   if (!event) return <main id="main-content" tabIndex={-1} className="page">{backLink}
@@ -305,10 +327,24 @@ export function EventDetailPage({ id }: { id: string }) {
       localStorage.setItem('signalsc-saved', JSON.stringify(next)); setSaved(!saved); setSaveError('');
     } catch { setSaveError('This browser could not save the event. Allow site storage and try again.'); }
   }
+  function trackRegistrationVisit() {
+    if (!event) return;
+    try { startRegistrationCheck(event); setSaveError(''); }
+    catch { setSaveError('EngageSC can still open, but browser storage is needed to remember your registration check.'); }
+  }
+  function toggleRegistration() {
+    try {
+      if (registered) moveRegistrationToSaved(id);
+      else answerRegistration(id, 'yes');
+      setSaveError('');
+    } catch { setSaveError('Your registration choice could not be saved. Allow browser storage and try again.'); }
+  }
   return <main id="main-content" tabIndex={-1} className="page">
     {backLink}
     <section className="detail-hero"><div className="eyebrow">{event.organizationName?.trim() || 'Organizer not listed'} · {event.status === 'cancelled' ? 'Notice' : 'Event details'}</div><h1>{event.title}</h1><div className="detail-meta">{dateLabel(event.startsAt, 'Time not listed')}{event.endsAt ? ` — ${dateLabel(event.endsAt)}` : ''}<br />{locationLabel(event)} · {money(event.costCents)}</div>
-      <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`} aria-describedby={event.endsAt ? undefined : 'calendar-note'}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
+      <div className="detail-actions"><button className={`btn btn-gold saved-label ${saved || registered ? 'is-saved' : ''}`} aria-label={registered ? 'In Registered' : saved ? 'Saved' : 'Save event'} aria-pressed={saved} disabled={registered} onClick={toggleSaved}>{registered ? 'In Registered' : saved ? 'Saved' : 'Save event'}</button>
+        <button className="btn btn-outline" aria-pressed={registered} onClick={toggleRegistration}>{registered ? 'Registered · Undo' : 'Mark as registered'}</button>
+        {event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`} aria-describedby={event.endsAt ? undefined : 'calendar-note'}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer" onClick={trackRegistrationVisit}>Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer" onClick={event.sourceKind === 'engagesc' ? trackRegistrationVisit : undefined}>{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
       {event.startsAt && !event.endsAt && <p className="calendar-note" id="calendar-note">End time isn’t listed, so your calendar entry is set to 1 hour.</p>}
     </section>
     <FeedbackForm event={event} />
@@ -319,14 +355,14 @@ export function EventDetailPage({ id }: { id: string }) {
       <section className="detail-section"><h2>The details</h2><div className="field-grid">
         <Field label="Starts" missing={!event.startsAt}>{dateLabel(event.startsAt)}</Field><Field label="Ends" missing={!event.endsAt}>{dateLabel(event.endsAt, 'End time not listed')}</Field><Field label="Location" missing={!event.location?.trim()}>{locationLabel(event)}</Field><Field label="Cost" missing={event.costCents === null}>{money(event.costCents)}</Field>
         <Field label="Food" missing={event.food === 'unknown'}>{foodText}</Field><Field label="Who can attend" missing={!event.eligibility?.trim()}>{unknown(event.eligibility)}</Field><Field label="Beginner friendly" missing={event.beginnerFriendly === null}>{event.beginnerFriendly === null ? 'Not listed' : event.beginnerFriendly ? 'Yes' : 'No'}</Field>
-        <Field label="Registration link" missing={!event.registrationUrl}>{event.registrationUrl ? <a className="source-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Open registration ↗</a> : 'Not listed'}</Field>
+        <Field label="Registration link" missing={!event.registrationUrl}>{event.registrationUrl ? <a className="source-link" href={event.registrationUrl} target="_blank" rel="noreferrer" onClick={trackRegistrationVisit}>Open registration ↗</a> : 'Not listed'}</Field>
         <Field label="Registration deadline" missing={!event.registrationDeadline}>{dateLabel(event.registrationDeadline)}</Field><Field label="Timezone">{event.timezone}</Field><Field label="Source type">{event.sourceKind === 'engagesc' ? 'EngageSC calendar' : event.sourceKind === 'usc-calendar' ? 'USC calendar' : 'Flyer'}</Field>
       </div></section>
       <section className="detail-section"><h2>Confirmation</h2><Confirmation event={event} /><p className="event-meta" style={{ marginTop: 12 }}>Updated {dateLabel(event.updatedAt)} · Published {dateLabel(event.publishedAt)}</p></section>
       {event.evidence.length > 0 && <section className="detail-section"><h2>Evidence from the source</h2>{event.evidence.map((entry, i) => <div className="evidence" key={`${entry.field}-${i}`}><b>{entry.field}</b>“{entry.excerpt}”</div>)}</section>}
       {event.uncertainties.length > 0 && <section className="detail-section"><h2>Still to confirm</h2>{event.uncertainties.map((item, i) => <p className="event-meta" key={`${item}-${i}`}>• {item}</p>)}</section>}
     </div><aside className="detail-aside">
-      <div className="registration-card"><h3>Go to the source.</h3><p className="event-meta">Check the original announcement for the latest details.</p>{event.sourceUrl ? <a className="source-link" href={event.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a> : <span className="unknown">Source link not listed</span>}</div>
+      <div className="registration-card"><h3>Go to the source.</h3><p className="event-meta">Check the original announcement for the latest details.</p>{event.sourceUrl ? <a className="source-link" href={event.sourceUrl} target="_blank" rel="noreferrer" onClick={event.sourceKind === 'engagesc' ? trackRegistrationVisit : undefined}>Open source ↗</a> : <span className="unknown">Source link not listed</span>}</div>
       <div className="source-card"><h3>Flyer</h3>{event.flyerUrl ? <img className="flyer" src={event.flyerUrl} alt={`Original flyer for ${event.title}`} /> : <p className="event-meta unknown">No original image attached.</p>}</div>
     </aside></div>
   </main>;
@@ -342,33 +378,4 @@ function readSaved(): string[] | null {
     return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : null;
   } catch { return null; }
 }
-export function SavedPage() {
-  const [events, setEvents] = useState<EventRecord[]>([]);
-  const [missing, setMissing] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [storageUnavailable, setStorageUnavailable] = useState(false);
-  const reload = async () => {
-    setLoading(true); setError(''); setStorageUnavailable(false);
-    const ids = readSaved();
-    if (!ids) {
-      setEvents([]); setMissing([]); setStorageUnavailable(true); setLoading(false);
-      return;
-    }
-    const found: EventRecord[] = [];
-    const absent: string[] = [];
-    await Promise.all(ids.map(async id => {
-      try { found.push((await api.event(id)).event); }
-      catch (e) { if (e instanceof ApiError && e.status === 404) absent.push(id); else setError(e instanceof Error ? e.message : 'Saved events could not load.'); }
-    }));
-    setEvents(found); setMissing(absent); setLoading(false);
-  };
-  useEffect(() => { void reload(); }, []);
-  return <main id="main-content" tabIndex={-1} className="page"><section className="hero"><div className="eyebrow">Your list, on this device</div><h1>Keep the plans<br />you like.</h1><p className="lede">Saved events are stored in this browser and refreshed from the event source every time you visit.</p><div className="hero-rule" /></section>
-    {error && <ErrorNotice error={error} retry={() => void reload()} />}
-    {storageUnavailable && <ErrorNotice error="This browser could not read your saved events. Allow site storage in your browser settings and try again." retry={() => void reload()} />}
-    {loading ? <LoadingList /> : storageUnavailable ? null : events.length === 0 && missing.length === 0 ? (error ? null : <EmptyState title="Nothing saved just yet" action={<div className="empty-actions"><a className="btn btn-primary" href="#/discover">Browse Discover</a></div>}>Save an event you want to remember and it’ll be waiting here.</EmptyState>) :
-      <div className="event-list">{events.map(event => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} />)}
-        {missing.map(id => <div className="event-card" key={id}><div className="event-card-top"><div><h3 className="event-title">This event is no longer available</h3><div className="event-meta">Saved event · source unavailable</div></div><span className="badge cancelled">Unavailable</span></div><p className="event-reason">The source has removed this event or it can’t be reached right now. Its saved place is kept on this device.</p></div>)}</div>}
-  </main>;
-}
+export { SavedPage } from './saved';
