@@ -149,21 +149,23 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 **Done when:** the complete workflow is usable with touch and keyboard, layouts remain readable without horizontal overflow, and production serves a valid manifest and its assets.
 
-**Step 6 implementation recorded:** responsive wrapping and minimum control/link sizes; readable contrast and focus; route titles and browsing focus recovery; focus after removing saves, reviewing, and cancelling; accessible organizer errors/busy states; linked manifest with regular, maskable, and Apple icons. See the Step 6 run in `tests.md` for evidence. **Verification gate remains INCOMPLETE:** final keyboard/auth and successful retry rechecks plus the full production refresh matrix were interrupted when the browser automation window became unavailable. The keyboard verification checkbox stays open. Screen-reader speech testing is NOT RUN. Step 7 has not started. Stop here until instructed.
+**Step 6 implementation recorded:** responsive wrapping and minimum control/link sizes; readable contrast and focus; route titles and browsing focus recovery; focus after removing saves, reviewing, and cancelling; accessible organizer errors/busy states; linked manifest with regular, maskable, and Apple icons. See the Step 6 run in `tests.md` for evidence. **Verification gate remains INCOMPLETE:** final keyboard/auth and successful retry rechecks plus the full production refresh matrix were interrupted when the browser automation window became unavailable. The keyboard verification checkbox stays open. Screen-reader speech testing is NOT RUN. Step 7 later rechecked sign-in/out, publication/edit/cancel focus, detail/back, successful retry, and production route refreshes; see its run in `tests.md`. The dedicated Close review button follow-up was not separately recorded, so this earlier verification gate is not retroactively marked complete.
 
 ## Step 7 — Integration and acceptance checks
 
-- [ ] Run `npm run typecheck` and `npm run build`, and resolve failures caused by frontend work. Record unrelated failures separately if they block verification.
-- [ ] Verify against the real backend: organizer sign-in → flyer/text → review → correction → publish → Discover → Ask → detail → save → calendar/registration action.
+- [x] Run `npm run typecheck` and `npm run build`, and resolve failures caused by frontend work. Record unrelated failures separately if they block verification.
+- [x] Verify against the real backend: organizer sign-in → flyer/text → review → correction → publish → Discover → Ask → detail → save → calendar/registration action.
 - [ ] Repeat the core flow on the published URL with Abhishek when deployment is available; local success alone does not complete this check.
-- [ ] Test invalid access codes, expired sessions, unavailable API, empty feeds, a no-match query, a 422 publication response, missing images, and unavailable saved events.
-- [ ] Verify missing cost does not display as free, unknown food stays unknown, missing facts are not invented, and imported records retain their actual provenance.
-- [ ] Check date grouping and filters near Los Angeles midnight and a daylight saving boundary; verify the displayed time agrees with the server's calendar export.
-- [ ] Verify organizer edit/cancel updates the student experience. Confirm drafts and cancelled events are absent from applicable public API results; report backend violations to Abhishek rather than merely hiding them visually.
-- [ ] Use the two development organizations to check session switching and permission-error handling. Local development codes are `demo-a` and `demo-b`; do not advertise them as production credentials.
-- [ ] Record actual checks, outcomes, and remaining issues for Abhishek's test notes. Never invent test metrics or claim checks that were not run.
+- [x] Test invalid access codes, expired sessions, unavailable API, empty feeds, a no-match query, a 422 publication response, missing images, and unavailable saved events.
+- [x] Verify missing cost does not display as free, unknown food stays unknown, missing facts are not invented, and imported records retain their actual provenance.
+- [x] Check date grouping and filters near Los Angeles midnight and a daylight saving boundary; verify the displayed time agrees with the server's calendar export.
+- [x] Verify organizer edit/cancel updates the student experience. Confirm drafts and cancelled events are absent from applicable public API results; report backend violations to Abhishek rather than merely hiding them visually.
+- [x] Use the two development organizations to check session switching and permission-error handling. Local development codes are `demo-a` and `demo-b`; do not advertise them as production credentials.
+- [x] Record actual checks, outcomes, and remaining issues for Abhishek's test notes. Never invent test metrics or claim checks that were not run.
 
 **Done when:** required commands pass, the real end-to-end workflow is demonstrated, and critical failures have either been fixed or explicitly recorded as blockers. A mocked-only implementation is not integration-complete.
+
+**Step 7 local acceptance recorded:** see the Step 7 run in `tests.md` and `docs/FRONTEND_ACCEPTANCE.md`. Final typecheck/build, 68 unit/render tests, seven live API/asset tests, independent calendar parsing, desktop Chrome, and 320px Chrome emulation passed. Fixed self-broadcast session focus loss and disclosed unknown-end calendar placeholders. **Overall gate remains INCOMPLETE:** the user confirmed that Replit deployment has no published URL yet. Model/Postgres/deployed-environment and physical-device coverage are not claimed. Stopped here; Step 8 has not started.
 
 ## Step 8 — Slides, screenshots, and video
 

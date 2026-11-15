@@ -28,3 +28,11 @@ export async function saveDraft(id: string, patch: UpdateDraftRequest, publish: 
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
   return apiRequest<EventResponse>(`${path}/publish`, { method: 'POST', signal });
 }
+
+/** Ignore this tab's own broadcast, but accept other tabs and the older message shape. */
+export function sessionChangedElsewhere(message: unknown, sender: string): boolean {
+  if (message === 'changed') return true;
+  if (!message || typeof message !== 'object') return false;
+  const data = message as { type?: unknown; source?: unknown };
+  return data.type === 'changed' && typeof data.source === 'string' && data.source !== sender;
+}

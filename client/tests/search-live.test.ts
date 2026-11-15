@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { DraftResponse, EventRecord, EventResponse, SearchResponse } from '../../shared/api';
 import { campusDayStart } from '../src/lib/events';
 
-const origin = 'http://127.0.0.1:5174';
+const origin = process.env.FRONTEND_TEST_ORIGIN ?? 'http://127.0.0.1:5174';
 async function request(path: string, cookie = '', method = 'GET', body?: unknown) {
   return fetch(origin + path, { method, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
 }

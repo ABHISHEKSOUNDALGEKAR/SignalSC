@@ -105,3 +105,12 @@ test('detail API encodes the selected ID and rejects mismatched records', async 
   t.mock.method(globalThis, 'fetch', async () => Response.json({ event: eventFixture({ id: 'wrong' }) }));
   await assert.rejects(getEvent(event.id, new AbortController().signal), /could not be read/);
 });
+
+test('unknown end stays unknown while the calendar placeholder duration is disclosed', () => {
+  const unknown = renderToStaticMarkup(<EventInformation event={eventFixture({ endsAt: null })} />);
+  assert.match(unknown, /Ends<\/dt><dd>Unknown<\/dd>/);
+  assert.match(unknown, /aria-describedby="calendar-duration-note"/);
+  assert.match(unknown, /calendar file reserves one hour/);
+  const known = renderToStaticMarkup(<EventInformation event={eventFixture()} />);
+  assert.ok(!known.includes('calendar-duration-note'));
+});

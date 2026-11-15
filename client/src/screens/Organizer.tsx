@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { CreateDraftRequest, DraftRecord, DraftResponse, EventRecord, EventResponse, OrganizerSession, UpdateDraftRequest } from '../../../shared/api';
 import { loginRequestSchema } from '../../../shared/api';
 import { apiRequest, ApiError } from '../lib/api';
-import { organizerLists, readSession, requireSessionForOrganization, saveDraft, sessionPath } from '../lib/organizer-api';
+import { organizerLists, readSession, requireSessionForOrganization, saveDraft, sessionPath, sessionChangedElsewhere } from '../lib/organizer-api';
 import { imagePayload, readImage, validateCreate, validateFile, FormError } from '../lib/organizer-form';
 import { startResource } from '../lib/resource';
 import { useResource } from '../lib/useResource';
@@ -13,9 +13,11 @@ import { EmptyState, ErrorState, LoadingState } from '../components/States';
 import { OrganizerError, ReviewForm } from '../components/ReviewForm';
 
 const channelName = 'trojan-signal-organizer-session';
+// A message sender label, not an authentication token; also works on HTTP phone previews.
+const sessionSender = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 function announceSessionChange() {
   if (typeof BroadcastChannel === 'undefined') return;
-  const channel = new BroadcastChannel(channelName); channel.postMessage('changed'); channel.close();
+  const channel = new BroadcastChannel(channelName); channel.postMessage({ type: 'changed', source: sessionSender }); channel.close();
 }
 
 export function Organizer({ onEventsChanged }: { onEventsChanged: () => void }) {
@@ -55,7 +57,10 @@ export function Organizer({ onEventsChanged }: { onEventsChanged: () => void }) 
     const timer = window.setInterval(refreshSession, 30_000);
     window.addEventListener('focus', refreshSession);
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(channelName) : null;
-    if (channel) channel.onmessage = () => { setUser(null); setRestoring(true); refreshSession(); };
+    if (channel) channel.onmessage = event => {
+      if (!sessionChangedElsewhere(event.data, sessionSender)) return;
+      setUser(null); setRestoring(true); refreshSession();
+    };
     return () => { cancelRestore.current(); clearInterval(timer); window.removeEventListener('focus', refreshSession); channel?.close(); };
   }, [refreshSession]);
   const expire = useCallback(() => { cancelRestore.current(); setUser(null); setError(null); setNotice('Your session expired or the organization changed. Sign in again.'); setRestoring(false); }, []);

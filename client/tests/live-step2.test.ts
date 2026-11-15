@@ -1,12 +1,12 @@
-// Explicit local integration run; requires serve-step2-fixtures.ts and Vite on 5174.
+// Explicit local integration: seeded fixture API at FRONTEND_TEST_ORIGIN (defaults to Vite on 5174).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { EventsResponse, EventResponse } from '../../shared/api';
 import { eventsPath, initialFilters } from '../src/lib/events';
 import { inWindow } from '../../server/search';
 
-const origin = 'http://127.0.0.1:5174';
-test('real API through Vite: all filter combinations, order, public lifecycle and detail data', async () => {
+const origin = process.env.FRONTEND_TEST_ORIGIN ?? 'http://127.0.0.1:5174';
+test('real API: all filter combinations, order, public lifecycle and detail data', async () => {
   const now = new Date();
   for (const date of ['all', 'today', 'week'] as const) for (const free of [false, true]) for (const food of [false, true]) {
     const path = eventsPath({ date, free, food }, now);

@@ -23,10 +23,11 @@ export function EventInformation({ event }: { event: EventRecord }) {
     {cancelled && <p className="cancellation-note">This event has been cancelled. Check the original source for updates.</p>}
     <p className="detail-description">{event.description || 'Unknown'}</p>
     <div className="event-actions" aria-label="Event actions">
-      <a className="button" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`}>Add to calendar</a>
+      <a className="button" aria-describedby={event.endsAt === null ? 'calendar-duration-note' : undefined} href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`}>Add to calendar</a>
       {registration && !cancelled && <a className="button button-secondary" href={registration} target="_blank" rel="noopener noreferrer">Register <span className="sr-only">(opens in a new tab)</span></a>}
       <SaveButton id={event.id} title={event.title} />
     </div>
+    {event.endsAt === null && <p className="filter-note" id="calendar-duration-note">When the end time is unknown, the calendar file reserves one hour. Check the source for the actual end time.</p>}
     <dl className="facts detail-facts">
       <FieldDisplay label="Starts" value={dateLabel(event.startsAt)} /><FieldDisplay label="Ends" value={dateLabel(event.endsAt)} />
       <FieldDisplay label="Timezone" value={event.timezone} /><FieldDisplay label="Location" value={event.location} />

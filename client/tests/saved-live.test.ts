@@ -5,7 +5,7 @@ import type { DraftResponse, EventResponse } from '../../shared/api';
 import { createSavedStore, loadSavedRecord, savedKey } from '../src/lib/saved';
 import { ApiError } from '../src/lib/api';
 
-const origin = 'http://127.0.0.1:5174';
+const origin = process.env.FRONTEND_TEST_ORIGIN ?? 'http://127.0.0.1:5174';
 const originalFetch = globalThis.fetch;
 async function request(path: string, cookie = '', method = 'GET', body?: unknown) {
   return originalFetch(origin + path, { method, headers: { ...(cookie ? { Cookie: cookie } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });

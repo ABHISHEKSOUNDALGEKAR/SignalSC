@@ -145,3 +145,12 @@ test('review markup presents manual fallback, evidence, warnings, unknown option
   for (const text of ['Review draft', 'unavailable', 'Source evidence:', 'Room uncertain', 'Unmatched warning remains visible', 'aria-invalid="true"', 'Save and publish', 'Unknown', 'Submitted announcement']) assert.ok(html.includes(text), text);
   assert.ok(!html.includes('<script>')); assert.ok(!html.includes('<b>')); assert.ok(!html.includes('<p>synthetic announcement</p>'));
 });
+
+
+test('organizer ignores its own session broadcast and accepts changes from another tab', async () => {
+  const { sessionChangedElsewhere } = await import('../src/lib/organizer-api');
+  assert.equal(sessionChangedElsewhere({ type: 'changed', source: 'tab-a' }, 'tab-a'), false);
+  assert.equal(sessionChangedElsewhere({ type: 'changed', source: 'tab-b' }, 'tab-a'), true);
+  assert.equal(sessionChangedElsewhere('changed', 'tab-a'), true);
+  for (const invalid of [null, {}, { type: 'other', source: 'tab-b' }, { type: 'changed', source: 1 }]) assert.equal(sessionChangedElsewhere(invalid, 'tab-a'), false);
+});
