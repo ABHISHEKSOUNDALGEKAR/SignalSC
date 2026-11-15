@@ -176,7 +176,7 @@ function applyReview(x: Extraction, review: Review): string[] {
   for (const check of review.fieldChecks) {
     if (check.supported || !(check.field in filled)) continue;
     // A value with its own quote from the flyer stays; the quote is shown beside the field for the organizer to compare.
-    if (check.field !== 'cost' && x.evidence.some(e => evidenceFor[check.field].includes(e.field) && e.excerpt.trim())) continue;
+    if (check.field !== 'cost' && hasQuote(x, check.field)) continue;
     const label = fieldLabels[check.field] ?? check.field;
     const reason = check.note ? ` ${plainNote(check.note)}` : '';
     switch (check.field) {
@@ -196,6 +196,19 @@ function applyReview(x: Extraction, review: Review): string[] {
     notes.push(`${label[0].toUpperCase()}${label.slice(1)} was left blank because the flyer does not clearly state it.${reason}`);
   }
   return notes;
+}
+
+// Quotes are not always labelled with the expected field name, so food, end time and
+// deadline are also recognised by what the quoted flyer text says.
+const quotePatterns: Partial<Record<ReviewedField, RegExp>> = {
+  food: /food|dinner|lunch|breakfast|brunch|pizza|snack|refreshment|meal|boba|coffee|catered|tacos|donut/i,
+  endTime: /\d\s*(?:[ap]\.?m\.?)?\s*(?:-|–|—|to|until)\s*\d{1,2}(?::\d{2})?\s*[ap]\.?m|\bends?\b|\buntil\b/i,
+  registrationDeadline: /(?:rsvp|register|registration|sign[\s-]?up|apply|tickets?)[^.]*\b(?:by|before|until|closes?)\b|deadline|\bdue\b/i,
+};
+function hasQuote(x: Extraction, field: ReviewedField): boolean {
+  const pattern = quotePatterns[field];
+  return x.evidence.some(e => e.excerpt.trim() &&
+    (evidenceFor[field].some(name => name.toLowerCase() === e.field.toLowerCase()) || (pattern?.test(e.excerpt) ?? false)));
 }
 
 // A no-host bar sells drinks; never let the description say they are provided.
