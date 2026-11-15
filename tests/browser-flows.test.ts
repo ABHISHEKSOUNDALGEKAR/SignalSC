@@ -225,6 +225,11 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     assert.match((await storageWarning.textContent()) ?? '', /could not save the event.*allow site storage/i);
     assert.equal(await blockedSaveButton.getAttribute('aria-pressed'), 'false');
     assert.equal(await blockedStoragePage.getByRole('button', { name: 'Save event' }).count(), 1);
+    await blockedStoragePage.goto(`${webUrl}/#/saved`);
+    const savedStorageWarning = blockedStoragePage.getByRole('alert');
+    await savedStorageWarning.waitFor();
+    assert.match((await savedStorageWarning.textContent()) ?? '', /could not read your saved events.*allow site storage/i);
+    assert.equal(await blockedStoragePage.getByRole('heading', { name: 'Nothing saved just yet' }).count(), 0);
     assert.deepEqual(blockedStoragePageErrors, [], `Blocked-storage browser errors: ${blockedStoragePageErrors.join('; ')}`);
     await blockedStorageContext.close();
     blockedStorageContext = undefined;

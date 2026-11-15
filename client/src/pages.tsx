@@ -98,12 +98,16 @@ export function EventDetailPage({ id }: { id: string }) {
     setLoading(true); setError('');
     api.event(id).then(data => setEvent(data.event)).catch(e => setError(e instanceof Error ? e.message : 'Event could not be found.')).finally(() => setLoading(false));
   };
-  useEffect(() => { reload(); const ids = readSaved(); setSaved(ids.includes(id)); }, [id]);
+  useEffect(() => { reload(); const ids = readSaved(); setSaved(ids?.includes(id) ?? false); }, [id]);
   if (loading) return <main className="page"><LoadingList count={2} /></main>;
   if (!event) return <main className="page"><a className="nav-link" href="#/discover">← Discover</a><ErrorNotice error={error || 'This event is no longer available.'} retry={reload} /></main>;
   const foodText = event.food === 'advertised' ? 'Advertised' : event.food === 'not-advertised' ? 'Not advertised' : 'Unknown';
   function toggleSaved() {
     const ids = readSaved();
+    if (!ids) {
+      setSaveError('This browser could not save the event. Allow site storage and try again.');
+      return;
+    }
     const next = saved ? ids.filter(value => value !== id) : [...new Set([...ids, id])];
     try {
       localStorage.setItem('trojan-signal-saved', JSON.stringify(next)); setSaved(!saved); setSaveError('');
@@ -136,18 +140,27 @@ export function EventDetailPage({ id }: { id: string }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div><span className="field-label">{label}</span><div className={children === 'Unknown' ? 'field-value unknown' : 'field-value'}>{children}</div></div>;
 }
-function readSaved(): string[] {
-  try { const value: unknown = JSON.parse(localStorage.getItem('trojan-signal-saved') ?? '[]'); return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []; }
-  catch { return []; }
+function readSaved(): string[] | null {
+  try {
+    const stored = localStorage.getItem('trojan-signal-saved');
+    if (stored === null) return [];
+    const value: unknown = JSON.parse(stored);
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : null;
+  } catch { return null; }
 }
 export function SavedPage() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [missing, setMissing] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [storageUnavailable, setStorageUnavailable] = useState(false);
   const reload = async () => {
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setStorageUnavailable(false);
     const ids = readSaved();
+    if (!ids) {
+      setEvents([]); setMissing([]); setStorageUnavailable(true); setLoading(false);
+      return;
+    }
     const found: EventRecord[] = [];
     const absent: string[] = [];
     await Promise.all(ids.map(async id => {
@@ -159,7 +172,8 @@ export function SavedPage() {
   useEffect(() => { void reload(); }, []);
   return <main className="page"><section className="hero"><div className="eyebrow">Your list, on this device</div><h1>Keep the plans<br />you like.</h1><p className="lede">Saved events are stored in this browser and refreshed from the event source every time you visit.</p><div className="hero-rule" /></section>
     {error && <ErrorNotice error={error} retry={() => void reload()} />}
-    {loading ? <LoadingList /> : events.length === 0 && missing.length === 0 ? <EmptyState title="Nothing saved just yet">Save an event you want to remember and it’ll be waiting here.</EmptyState> :
+    {storageUnavailable && <div className="inline-message" role="alert">This browser could not read your saved events. Allow site storage in your browser settings and try again.</div>}
+    {loading ? <LoadingList /> : storageUnavailable ? null : events.length === 0 && missing.length === 0 ? <EmptyState title="Nothing saved just yet">Save an event you want to remember and it’ll be waiting here.</EmptyState> :
       <div className="event-list">{events.map(event => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} />)}
         {missing.map(id => <div className="event-card" key={id}><div className="event-card-top"><div><h3 className="event-title">This event is no longer available</h3><div className="event-meta">Saved event · source unavailable</div></div><span className="badge cancelled">Unavailable</span></div><p className="event-reason">The source has removed this event or it can’t be reached right now. Its saved place is kept on this device.</p></div>)}</div>}
   </main>;
