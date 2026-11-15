@@ -13,7 +13,7 @@
 
 ## Configuration and current limitations
 
-- Current import setup verified the running preview, PostgreSQL, and public-feed imports (290 new events). `/api/health` reports `status: ok`, `mode: live`, and `modelConfigured: false`. The type check, 33 server tests, and 35 simulated AI tests passed. `MODEL_API_KEY` and `ORGANIZER_ACCESS_CODES` are missing in this workspace: organizer sign-in is disabled, search uses basic matching, and extraction requires manual entry. No paid provider checks were run; historical live-check records do not verify this workspace's current configuration.
+- Current import setup verified the running preview, PostgreSQL, and public-feed imports (290 new events). After the user supplied `MODEL_API_KEY` and `ORGANIZER_ACCESS_CODES` securely, the app restarted successfully and `/api/health` reported `status: ok`, `mode: live`, and `modelConfigured: true`. The production build, dependency audit (zero vulnerabilities), type check, 33 server tests, and 35 simulated AI tests passed. Organizer codes were accepted at startup; signed-in organizer UI was not verified. No paid provider checks were run: key presence and historical live-check records do not verify this workspace's current provider access, credits, or live extraction/search.
 
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
