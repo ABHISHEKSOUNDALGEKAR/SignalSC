@@ -8,6 +8,7 @@ import type { StoredEvent } from '../server/store';
 import {
   assertDegradedFlyer, assertSourceConflict, degradedFlyerCases, sourceConflictCases,
 } from './live-flyer-cases';
+import { assertMultilingualFlyer, multilingualFlyers } from './multilingual-flyer-cases';
 
 // Opt-in only: this script spends real provider credits. Fixtures never enter
 // the running app or its database, and actual organizer credentials are unused.
@@ -172,6 +173,23 @@ for (const fixture of degradedFlyerCases) {
   assertDegradedFlyer(result.draft, fixture);
   assertEvidenceInSource(result.draft.evidence, fixture.source, `${fixture.id} flyer`);
   console.log(`PASS live ${fixture.id} image: visible facts retained; unreadable and unprinted facts not invented`);
+}
+
+for (const fixture of multilingualFlyers) {
+  const image = await readFile(new URL(`../tests/fixtures/${fixture.file}`, import.meta.url));
+  // Separate requests: translations and expectations never reach the model;
+  // image requests receive no transcript that could conceal an OCR failure.
+  for (const mode of ['text', 'image'] as const) {
+    const before = completions;
+    const input = mode === 'text'
+      ? { text: fixture.sourceLines.join('\n') }
+      : { imageBase64: image.toString('base64'), mimeType: 'image/png' };
+    const result = await extractDraft(input, now);
+    assert.equal(result.extractedBy, 'model', `${fixture.id} ${mode}: fallback cannot pass`);
+    assert.equal(completions - before, 1, `${fixture.id} ${mode}: requires one real JSON completion`);
+    assertMultilingualFlyer(result.draft, fixture);
+    console.log(`PASS live ${fixture.id} ${mode}: printed facts, attendance, and uncertainties`);
+  }
 }
 
 const store = createStore();

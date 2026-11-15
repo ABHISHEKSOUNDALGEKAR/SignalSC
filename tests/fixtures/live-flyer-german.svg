@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">
+  <rect width="1200" height="800" fill="white"/>
+  <g fill="black" font-family="DejaVu Sans, sans-serif" text-anchor="middle" font-size="44">
+    <text x="600" y="110" font-size="60">Spieleabend</text>
+    <text x="600" y="230">27. November 2026</text>
+    <text x="600" y="350">Beginn: 18:45 Uhr</text>
+    <text x="600" y="470">Ort wird noch bekannt gegeben</text>
+    <text x="600" y="590">Eintritt frei</text>
+    <text x="600" y="710">Keine Vorkenntnisse erforderlich</text>
+  </g>
+</svg>
