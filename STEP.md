@@ -38,14 +38,16 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 ## Step 1 — Establish the frontend foundation
 
-- [ ] Set up navigation for Ask, Discover, event detail, Saved, and Organizer.
-- [ ] Preserve the Trojan Signal identity while creating consistent spacing, typography, colors, buttons, inputs, cards, and status messaging.
-- [ ] Add typed API helpers for JSON requests and structured errors, including 401 and 422 handling.
-- [ ] Add shared event-card, field-display, loading, empty-state, and error/retry components as needed.
-- [ ] Prevent stale responses from overwriting newer filters/searches; clean up pending requests when appropriate.
-- [ ] Ensure navigating into details and back preserves a usable browsing experience.
+- [x] Set up navigation for Ask, Discover, event detail, Saved, and Organizer.
+- [x] Preserve the Trojan Signal identity while creating consistent spacing, typography, colors, buttons, inputs, cards, and status messaging.
+- [x] Add typed API helpers for JSON requests and structured errors, including 401 and 422 handling.
+- [x] Add shared event-card, field-display, loading, empty-state, and error/retry components as needed.
+- [x] Prevent stale responses from overwriting newer filters/searches; clean up pending requests when appropriate.
+- [x] Ensure navigating into details and back preserves a usable browsing experience.
 
 **Done when:** every required area is reachable, the existing app still builds, API errors can be displayed, and reusable UI foundations work at phone and desktop sizes.
+
+**Step 1 completed:** see the November 14, 2026 run in `tests.md`. All destinations have navigation shells; the Discover connection check uses the real API. The other screens explicitly identify pending work. Event cards have a reusable foundation but are not yet a rendered event feed. Cleanup/race protection is available for future filters/searches; those features remain in their assigned later steps. Stopped here awaiting the user's instruction.
 
 ## Step 2 — Discover and event details
 

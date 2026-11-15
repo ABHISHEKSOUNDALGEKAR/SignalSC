@@ -8,7 +8,7 @@ Use this document with `STEP.md`. It defines the checks the implementing agent m
 2. Use automated unit tests for important logic: date boundaries, money conversion, request/error handling, form serialization, and saved-ID storage. Use component/integration tests for consequential interactions and browser checks for layout, navigation, focus, downloads, and real API flows.
 3. Test observable behavior and outcomes. Avoid assertions tied to component internals, CSS class names, incidental wording, or large snapshots. Do not add unit tests for presentation-only changes when browser verification is sufficient.
 4. Inspect current tooling before adding dependencies. At creation of this plan, `package.json` has no test script or test runner. Do not claim `npm test` works. If needed, add a small compatible test setup and document its actual commands, coordinating package/lockfile changes under `STEP.md`. Keep test files within the frontend ownership area where practical.
-5. Keep fixtures synthetic, labeled, deterministic, and shaped like the current shared API contract. Mock the network boundary for isolated tests; use the real server for integration acceptance. A mock passing is not evidence that an endpoint works.
+5. Keep fixtures synthetic, labeled, deterministic, and shaped like the current shared API contract. Deliberately malformed payloads are appropriate for negative tests. Mock the network boundary for isolated tests; use the real server for integration acceptance. A mock passing is not evidence that an endpoint works.
 6. Control time and timezone in automated date tests. Test out-of-order responses with controlled deferred responses instead of arbitrary sleeps. Isolate browser storage and organizer sessions between cases.
 7. Use disposable local development records for publishing, editing, and cancellation tests. Do not mutate real organizer data or run destructive checks on a published service without authorization. Read-only production smoke checks can still proceed.
 8. Fix failures caused by the change, add a focused regression test for meaningful logic bugs, and rerun the failed check plus affected checks. Do not broaden or repeatedly rerun suites without a reason.
@@ -28,9 +28,9 @@ Use this document with `STEP.md`. It defines the checks the implementing agent m
 
 Record configured automated test commands here when implemented:
 
-- Unit: **Not configured yet.**
-- Component/integration: **Not configured yet.**
-- Browser automation: **Not configured yet; manual browser checks are acceptable when recorded.**
+- Unit: `node --import tsx --test client/tests/*.test.tsx` — Node's built-in test runner with the existing `tsx` dependency; no package changes needed. There is still no `npm test` script.
+- Component/integration: the same command includes static React rendering checks for shared states. These do not simulate mounted interactions; use browser checks for those until a DOM interaction runner is configured.
+- Browser automation: **Not configured; recorded manual/native browser checks used for Step 1.**
 
 ## Shared fixture set
 
@@ -259,4 +259,30 @@ Completion gate: PASS or INCOMPLETE
 
 ## Recorded runs
 
-No application tests have been run as part of creating this plan. Add implementation-step reports here as work progresses.
+### Step 1 — November 14, 2026
+
+**Scope / environment:** frontend foundation, branch `frontend-stuff`, uncommitted changes based on commit `294b3ab`. Local Node 22.17.1; real local Express API via Vite at `http://localhost:5173`; no `.env` configured, local memory mode. Automated API responses are mocked; browser feed uses the actual API, which returned zero events. Chrome on macOS, desktop at 100% zoom and responsive emulation at 320 × 725 CSS pixels. Physical phone checks and non-Chrome browsers were not run in this step.
+
+**Automated checks — PASS:**
+
+- `node --import tsx --test client/tests/*.test.tsx`: 17 tests passed, 0 failed. Source: `client/tests/foundation.test.tsx`.
+- Tests cover request URL/method/body/headers/signal/credentials; GET without a body; 204 sign-out; malformed event-list shapes; structured 401/403/404/422/503 errors and missing fields; non-JSON failure and unreadable success; network/abort propagation; safe network-error copy; out-of-order responses even when abort is ignored; cleanup and retry recovery; hash routes/encoded IDs; accessible shared state markup; escaped source text; and null/zero/false field semantics.
+- `npm run typecheck`: passed.
+- `npm run build`: passed (Vite client and esbuild server).
+- `git diff --check`: passed at handoff.
+
+**Browser and regression checks — PASS:**
+
+- Real initial `/api/events` request displays “Event service connected · 0 published events” and the empty-state message.
+- Discover, Ask, Saved, Organizer, and the event-detail preview each open. Later-step capabilities are explicitly marked pending.
+- Detail/back retains the connection state. Direct `#event/test-event` navigation and reload open the detail shell, with a Discover fallback for a fresh page.
+- Tab/Enter operates the detail back link; Shift+Tab/Enter operates main navigation. Route changes focus the page heading, and the keyboard-focused back link has a visible outline.
+- Desktop shell and all five destinations at 320px width were inspected with screenshots/accessibility trees. Navigation wraps and content remains readable without visible horizontal overflow. This is emulation, not a physical phone result.
+- DevTools Offline + Refresh connection displays the recoverable connection error. Restoring No throttling + Try again restores the real connected empty state.
+- Console inspection found a missing favicon request; added the local SVG favicon and linked it. Reload after the fix showed no app errors; the remaining warning originated from an installed Chrome extension. The deliberately induced offline request produced an expected network error during the failure test.
+
+**Fixes / reruns:** inspection of the existing server revealed sign-out returns HTTP 204; added successful empty-body support and its regression test. Added malformed event-list protection before reading `.events.length`. After these changes, all 17 tests, typechecking, and the production build passed. The favicon correction was verified through a browser reload.
+
+**Pending / not run:** mounted organizer/session UI, mutations, actual cards/filter/search races, saving, full detail actions, and PWA checks belong to Steps 2–7 and are not implemented or claimed tested. The existing organizer introductory navigation remains reachable. HTTP 401/422 handling is verified in the API foundation tests; live organizer behavior remains Step 3. Production/deployed browser journeys and assistive-device coverage remain later-step checks. No new test dependencies, shared contracts, server code, package files, or deployment were changed.
+
+**Completion gate: PASS for Step 1 only.** No Step 2 work started. Await the user's instruction before proceeding.
