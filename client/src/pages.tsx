@@ -20,6 +20,10 @@ export function AskPage() {
     finally { setLoading(false); }
   }
   const prompts = ['Free food this week', 'Something after 5 near campus', 'Beginner-friendly events', 'What can I do today?'];
+  // One short spoken summary per search, so screen readers hear the outcome without the whole list being read out.
+  const announcement = loading ? 'Searching for events…'
+    : result ? `${result.answer} ${result.noMatch || result.results.length === 0 ? 'No events matched.' : result.results.length === 1 ? '1 event found.' : `${result.results.length} events found.`}`
+      : '';
   return <main className="page">
     <section className="hero">
       <div className="eyebrow">Trojan Signal · Find your people</div>
@@ -29,15 +33,23 @@ export function AskPage() {
     </section>
     <div className="content-grid">
       <div className="primary-column">
-        <form className="ask-box" onSubmit={e => { e.preventDefault(); void ask(); }}>
-          <textarea aria-label="Ask about campus events" maxLength={500} placeholder="Try “free food near campus after class…”" value={query} onChange={e => setQuery(e.target.value)} />
+        <form className="ask-box" aria-busy={loading} onSubmit={e => { e.preventDefault(); void ask(); }}>
+          <textarea aria-label="Ask about campus events" aria-describedby="ask-hint" enterKeyHint="search" maxLength={500} placeholder="Try “free food near campus after class…”" value={query} onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => {
+              // Enter searches; Shift+Enter keeps the usual new line. Ignore Enter while an input method is composing text.
+              if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              void ask();
+            }} />
           <button className="btn btn-primary" type="submit" disabled={loading || !query.trim()}>{loading ? 'Looking…' : 'Find events'} <span aria-hidden="true">↗</span></button>
         </form>
-        {!result && !loading && <div className="prompt-row">{prompts.map(prompt => <button key={prompt} className="prompt-chip" onClick={() => void ask(prompt)}>{prompt}</button>)}</div>}
+        <p className="ask-hint" id="ask-hint">Press Enter to search · Shift+Enter for a new line</p>
+        <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
+        {!result && !loading && <div className="prompt-row">{prompts.map(prompt => <button key={prompt} type="button" className="prompt-chip" onClick={() => void ask(prompt)}>{prompt}</button>)}</div>}
         {loading && <><div className="answer-panel">Reading the dates, details, and constraints in your question…</div><LoadingList count={2} /></>}
         {error && <ErrorNotice error={error} retry={() => void ask()} />}
         {result && <>
-          <div className="answer-panel" role="status">{result.answer}</div>
+          <div className="answer-panel">{result.answer}</div>
           {result.constraintSummary.length > 0 && <div className="chip-row">{result.constraintSummary.map((chip, index) => <span className="constraint-chip" key={`${chip}-${index}`}>{chip}</span>)}</div>}
           <div className="section-head"><h2>{result.noMatch ? 'No events matched' : 'Worth a look'}</h2><span className="muted">{result.results.length} found</span></div>
           {result.noMatch ? <p className="lede">No events fit all of those details right now. The answer above explains what we understood; try easing one constraint or check Discover.</p> :
