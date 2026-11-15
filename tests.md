@@ -160,7 +160,7 @@ Use current/frozen future dates for normal cases so events do not silently becom
 - [ ] Save from Discover, Ask, and detail; verify every control and Saved agrees. Unsave in each location and verify synchronization.
 - [ ] Refresh and reopen the app: saved IDs persist and current event details are fetched, rather than stale stored records.
 - [ ] Mix valid and unavailable IDs: valid cards still appear. Retry a temporary network failure successfully.
-- [ ] Edit a saved event through Organizer and confirm Saved shows current data after refetch; cancel it and verify graceful unavailability.
+- [ ] Edit a saved event through Organizer and confirm Saved shows current data after refetch; cancel it and verify a clear cancellation state when the API retains the record, or graceful unavailability if the API returns 404.
 - [ ] Student saves do not interfere with organizer sign-in/out or expose private draft data.
 
 **Gate:** persistence, synchronized controls, current-data refetching, and storage/network recovery pass.
@@ -404,3 +404,32 @@ Completion gate: PASS or INCOMPLETE
 **Remaining limits / dependencies:** Save/Unsave remains Step 5; cards currently link to details and do not claim working saves. Model-backed interpretation/answer quality was **NOT RUN** because no model was configured. The real rules-mode contract and safe display of synthetic model-shaped responses passed separately. Deployed-site, other browser engines, screen-reader, and physical-phone checks remain later-stage validation. Organizer review/publication helpers and Discover/detail regressions passed in the full automated suite; live publication/search and browser cancellation/public refresh also passed. No Step 5 feature work was performed.
 
 **Completion gate: PASS for Step 4; Save integration remains pending Step 5.** Stop here until instructed.
+
+### Step 5 — November 14, 2026
+
+**Scope / environment:** shared saved-ID persistence, Save/Unsave in Discover/Ask/detail/Saved, independent current-record fetching, unavailable/error recovery, and the earlier steps' deferred save controls. Branch `frontend-stuff`, working-tree changes based on `a7f996a`. Node 22.17.1; real local memory backend through Vite on port 5174. Chrome desktop and 320 × 725 responsive emulation. Browser tests used `http://localhost:5174` as a separate storage origin from the earlier `127.0.0.1` tests; the isolated origin initially showed no saved events. No real database, server/shared/package code, browser settings, or deployment was changed.
+
+**Automated commands / results — PASS:**
+
+- `node --import tsx --test client/tests/*.test.tsx`: **63 passed, 0 failed**, including all 49 previous checks and 14 saved-event tests. Existing card/detail/search render tests now supply the same saved-event provider used by the app.
+- `npm run typecheck`: passed. `npm run build`: passed, including typecheck. Final checks followed the mixed-record rendering extraction; the final CSS-only removal of an unused placeholder selector was checked with the production build.
+- `node --import tsx --test client/tests/saved-live.test.ts`: real API integration passed. Verified public detail refetch after an organizer edit, cancellation retained as an explicitly cancelled saved record, mixed available/private/missing IDs, a controlled 503 at the HTTP boundary followed by real API recovery, and unchanged ID-only persistence through organizer sign-out. The test refuses non-memory/model-enabled backends and mutates only newly created labeled synthetic records.
+- `git diff --check`: passed at handoff.
+
+**Unit/render coverage:** empty first use, deduplication, targeted unsave, fresh-store persistence restoration, invalid JSON/wrong shapes/mixed entries, blocked storage access, thrown reads/writes, honest temporary-state notices, write retry merging pending additions/removals with other stored IDs, read recovery retaining hidden existing saves, subscriber synchronization, stable snapshots, external key clearing, 404 versus network/503/abort handling without deleting saved IDs, cancelled/private-status handling, fresh detail requests using `cache: 'no-store'`, independently loaded mixed records, mixed valid/unavailable/error presentation with recovery actions, synchronized card/detail/Ask pressed states, informative empty state, and safe text/cancellation rendering. Only IDs are serialized; event bodies and private organizer data are not stored.
+
+**Browser cases — PASS:**
+
+1. Opened Saved on the isolated localhost origin: no saved events, with instructions for saving from Discover/Ask/detail.
+2. Saved the synthetic fixture from Discover and verified detail immediately showed Unsave. Unsave from detail cleared it. Searched the fixture through Ask, saved there, and verified it appeared in Saved.
+3. Refreshed the page and opened a new tab at the same origin: the saved ID survived and the event was fetched again. Removed it in Saved; Discover reflected Save again. Tested Save/Unsave in Discover, Save from detail reflected in Ask, and Unsave/Save in Ask. All locations agreed.
+4. Inspected Saved and its long synthetic-title card at 320px. The title, facts, View details, and Unsave control wrapped without visible horizontal overflow. This was emulation, not a physical phone.
+5. With one saved event present, set DevTools Offline and clicked Refresh saved events. The event showed a connection error with Try again and Remove from saved; its saved ID remained. Restored No throttling and retried: the actual event card returned with Unsave active.
+6. Signed into Demo Org A on the isolated origin and edited the saved synthetic event's title. Returning to Saved showed the new title fetched from the API. Cancelled the same disposable event through the confirmation UI; Saved retained it with a clear Cancelled notice and working Unsave. This matches the API's deliberate policy of keeping cancelled details readable.
+7. Signed out of Organizer and returned to Saved: the public cancelled listing remained saved, while organizer private views were cleared. Finally removed only the disposable browser save, restoring the origin's original empty list. No pre-existing student saves were removed.
+
+**Negative-case layers / limits:** malformed/blocked/quota storage conditions were exercised with controlled storage implementations and rendered notices, not by changing browser settings. Mixed available/private/missing IDs were checked against the real API and the actual per-record rendering component; no missing-ID storage fixture was injected into the browser. Browser error recovery used a real offline request. Initial attempts to type a read-only storage query in the native developer console were refused by the automation's browser-state guard; no console storage mutation was executed or required for the passing API/render coverage. Console observations showed the expected induced network error and an installed-extension warning, with no observed app exception.
+
+**Reproduction / handoff:** run the normal local API in disposable memory mode without a model key and Vite on 5174 before the explicit live-test command. Its synthetic topic for this run was `savedstepfive1794713083371`; browser fixture ID `96ccb99d-ea2b-4532-a4b6-7e5b40f6360f` was intentionally edited/cancelled during UI checks. The script leaves labeled memory-only records for verification; they disappear on backend restart. Do not use it against real organizer data. The standard `.test.tsx` suite needs no running backend. Sandbox networking initially blocked the live command; rerunning outside the sandbox passed.
+
+**Completion gate: PASS for Step 5.** Earlier Step 2/4 save dependencies are now checked off. Phone/browser/assistive-technology coverage beyond the checks above and the PWA manifest remain Step 6 or later. No Step 6 feature work was performed; stop here until instructed.

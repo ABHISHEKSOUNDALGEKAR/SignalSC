@@ -12,7 +12,6 @@ export function SearchResults({ response, query }: { response: SearchResponse; q
     </div>
     {!response.noMatch && <section aria-labelledby="matching-events-heading"><h3 id="matching-events-heading">Matching events</h3>
       <div className="event-grid search-grid">{response.results.map(({ event, reason }) => <div className="search-result" key={event.id}><EventCard event={event} /><p className="match-reason"><strong>Why it matches:</strong> {reason}</p></div>)}</div>
-      <p className="save-pending">Saving events will be available in a later update.</p>
     </section>}
     {response.excluded.length > 0 && <section className="panel" aria-labelledby="excluded-heading"><h3 id="excluded-heading">Why other events were left out</h3><ul className="exclusion-notes">{response.excluded.map((note, index) => <li key={index}><strong>{note.count}</strong> — {note.reason}</li>)}</ul></section>}
   </section>;

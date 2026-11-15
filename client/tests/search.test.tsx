@@ -1,7 +1,7 @@
 import React from 'react';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderWithSaves as renderToStaticMarkup } from './render-with-saves';
 import type { SearchResponse } from '../../shared/api';
 import { createSearchController, queryInput, searchEvents, starterPrompts, type SearchState } from '../src/lib/search';
 import { ApiError } from '../src/lib/api';

@@ -55,7 +55,7 @@ export async function getEvents(signal: AbortSignal, filters?: Filters): Promise
 }
 
 export async function getEvent(id: string, signal: AbortSignal): Promise<EventResponse> {
-  const data = await apiRequest<EventResponse>(`/api/events/${encodeURIComponent(id)}`, { signal });
+  const data = await apiRequest<EventResponse>(`/api/events/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
   if (!data?.event || data.event.id !== id) throw new ApiError(200, 'The event details could not be read. Please try again.');
   return data;
 }

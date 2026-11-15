@@ -1,7 +1,7 @@
 import React from 'react';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderWithSaves as renderToStaticMarkup } from './render-with-saves';
 import { campusDayStart, eventsPath, initialFilters, groupEvents, dateLabel, costLabel, foodLabel, confirmationLabel, webUrl } from '../src/lib/events';
 import { getEvent } from '../src/lib/api';
 import { EventInformation } from '../src/screens/EventDetail';

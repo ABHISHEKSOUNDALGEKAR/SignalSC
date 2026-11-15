@@ -4,6 +4,7 @@ import { ApiError, getEvent } from '../lib/api';
 import { confirmationLabel, costLabel, dateLabel, foodLabel, sourceLabel, webUrl } from '../lib/events';
 import { useResource } from '../lib/useResource';
 import { EmptyState, ErrorState, FieldDisplay, LoadingState } from '../components/States';
+import { SaveButton } from '../components/SavedEvents';
 
 function Flyer({ url }: { url: string | null }) {
   const [failed, setFailed] = useState(false);
@@ -24,8 +25,8 @@ export function EventInformation({ event }: { event: EventRecord }) {
     <div className="event-actions" aria-label="Event actions">
       <a className="button" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`}>Add to calendar</a>
       {registration && !cancelled && <a className="button button-secondary" href={registration} target="_blank" rel="noopener noreferrer">Register <span className="sr-only">(opens in a new tab)</span></a>}
+      <SaveButton id={event.id} title={event.title} />
     </div>
-    <p className="save-pending">Saving events will be available in a later update.</p>
     <dl className="facts detail-facts">
       <FieldDisplay label="Starts" value={dateLabel(event.startsAt)} /><FieldDisplay label="Ends" value={dateLabel(event.endsAt)} />
       <FieldDisplay label="Timezone" value={event.timezone} /><FieldDisplay label="Location" value={event.location} />

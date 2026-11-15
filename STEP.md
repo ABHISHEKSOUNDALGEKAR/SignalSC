@@ -69,11 +69,11 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 - [x] Display the flyer when present, with appropriate alternative text and an image-failure state. Offer the original source link when present; indicate when it is unknown.
 - [x] Add a plain anchor to `/api/events/:id/calendar.ics` for Add to calendar.
 - [x] Show Register only when `registrationUrl` exists, and link to that URL.
-- [ ] Connect Save/Unsave to the shared saved-event state from Step 5.
+- [x] Connect Save/Unsave to the shared saved-event state from Step 5.
 
 **Done when:** real API events can be filtered, opened, and inspected; unknown values and provenance stay accurate; source, registration, and calendar actions point to the correct resources.
 
-**Step 2 implementation and verification:** see the Step 2 run in `tests.md`. Discover and details use the real API; synthetic local test records are isolated in an explicit fixture server. Today/This week show upcoming and ongoing events, with Monday–Sunday weeks in Los Angeles time. The current server intentionally permits direct reads of cancelled events; details label them cancelled and suppress the Register action. Save/Unsave remains unchecked until Step 5; no working Save control is claimed. No Step 3 work started. Stopped here awaiting the user's instruction.
+**Step 2 implementation and verification:** see the Step 2 run in `tests.md`. Discover and details use the real API; synthetic local test records are isolated in an explicit fixture server. Today/This week show upcoming and ongoing events, with Monday–Sunday weeks in Los Angeles time. The current server intentionally permits direct reads of cancelled events; details label them cancelled and suppress the Register action. Save/Unsave was deferred at this checkpoint and is now completed in Step 5. No Step 3 work was started at this checkpoint.
 
 ## Step 3 — Complete the organizer workflow
 
@@ -120,21 +120,23 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 - [x] When `noMatch` is true, clearly show the returned no-match answer without fabricated suggestions presented as matching events.
 - [x] Keep returned result membership and match explanations grounded in the response. Do not generate additional client-side AI claims or silently relax the server's constraints.
 - [x] Connect result cards to event details and support loading, error/retry, and repeated searches.
-- [ ] Connect Ask result Save/Unsave controls to the shared saved-event state when Step 5 is implemented.
+- [x] Connect Ask result Save/Unsave controls to the shared saved-event state when Step 5 is implemented.
 
 **Done when:** a natural-language question returns the API's grounded answer and results, while a strict no-match query gives an honest empty outcome with relevant exclusion notes.
 
-**Step 4 implementation and verification:** see the Step 4 run in `tests.md`. Ask uses the real search endpoint, preserves the question/results when returning from details, and clears old answers on a new request or an organizer event change. Controlled asynchronous tests verify stale-response protection. Local rules-mode API and browser checks passed for matches, unknown-value exclusions, no-match, error/retry, and the query limit. Save integration stays unchecked for Step 5. No Step 5 work started. Stopped here awaiting the user's instruction.
+**Step 4 implementation and verification:** see the Step 4 run in `tests.md`. Ask uses the real search endpoint, preserves the question/results when returning from details, and clears old answers on a new request or an organizer event change. Controlled asynchronous tests verify stale-response protection. Local rules-mode API and browser checks passed for matches, unknown-value exclusions, no-match, error/retry, and the query limit. Save integration was deferred at this checkpoint and is now completed in Step 5. No Step 5 work was started at this checkpoint.
 
 ## Step 5 — Saved events
 
-- [ ] Store a deduplicated list of event IDs in a namespaced `localStorage` key; share save state across cards, details, and the Saved screen.
-- [ ] Refetch current records through `GET /api/events/:id` rather than treating stored copies as current.
-- [ ] Support save, unsave, refresh persistence, and an informative empty state.
-- [ ] Handle malformed stored data or unavailable storage without crashing or falsely claiming persistence.
-- [ ] Handle a saved event that is no longer available without breaking the remaining list; distinguish unavailable events from temporary network failures.
+- [x] Store a deduplicated list of event IDs in a namespaced `localStorage` key; share save state across cards, details, and the Saved screen.
+- [x] Refetch current records through `GET /api/events/:id` rather than treating stored copies as current.
+- [x] Support save, unsave, refresh persistence, and an informative empty state.
+- [x] Handle malformed stored data or unavailable storage without crashing or falsely claiming persistence.
+- [x] Handle a saved event that is no longer available without breaking the remaining list; distinguish unavailable events from temporary network failures.
 
 **Done when:** saves survive a page refresh, all save controls agree, and stale records or storage failures produce understandable behavior.
+
+**Step 5 completed:** see the Step 5 run in `tests.md`. Discover, Ask, detail, and Saved share one saved-ID store under `trojan-signal:saved-event-ids:v1`. Saved loads each event independently with fresh detail requests. A 404 stays removable without deleting other saves; transient failures offer retry and keep the ID. Cancelled records remain saved and display their cancellation, matching the existing API. Storage failures show an honest temporary-state notice and can retry pending changes without overwriting unrelated stored IDs. No Step 6 work started. Stopped here awaiting the user's instruction.
 
 ## Step 6 — Phone usability, accessibility, and PWA manifest
 

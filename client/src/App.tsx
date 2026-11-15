@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pages, readRoute, type Page } from './lib/navigation';
 import { Discover } from './screens/Discover';
-import { PlannedScreen } from './screens/Placeholders';
+import { Saved } from './screens/Saved';
+import { SavedStorageNotice } from './components/SavedEvents';
 import { EventDetail } from './screens/EventDetail';
 import { Organizer } from './screens/Organizer';
 import { Ask } from './screens/Ask';
@@ -22,12 +23,12 @@ export function App() {
   const backHref = useRef(`#${route.page === 'event' ? 'discover' : route.page}`);
   const heading = useRef<HTMLHeadingElement>(null);
   const currentRoute = useRef(route);
-  const browsingScroll = useRef({ discover: 0, ask: 0 });
+  const browsingScroll = useRef({ discover: 0, ask: 0, saved: 0 });
   useEffect(() => {
     const onHashChange = () => {
       const next = readRoute(window.location.hash);
       const current = currentRoute.current.page;
-      if (current === 'discover' || current === 'ask') browsingScroll.current[current] = window.scrollY;
+      if (current === 'discover' || current === 'ask' || current === 'saved') browsingScroll.current[current] = window.scrollY;
       currentRoute.current = next;
       if (next.page !== 'event') backHref.current = `#${next.page}`;
       setRoute(next);
@@ -39,7 +40,7 @@ export function App() {
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     heading.current?.focus({ preventScroll: true });
-    window.scrollTo(0, route.page === 'discover' || route.page === 'ask' ? browsingScroll.current[route.page] : 0);
+    window.scrollTo(0, route.page === 'discover' || route.page === 'ask' || route.page === 'saved' ? browsingScroll.current[route.page] : 0);
   }, [route]);
   const intro = introductions[route.page];
   return <>
@@ -49,10 +50,11 @@ export function App() {
     </header>
     <main id="main-content"><p className="eyebrow">A clearer way to find your people</p>
       <h1 ref={heading} tabIndex={-1}>{intro.title}</h1><p className="intro">{intro.body}</p>
+      <SavedStorageNotice />
       {/* Preserve browsing state while viewing details or another destination. */}
       <div hidden={route.page !== 'discover'}><Discover revision={eventRevision} /></div>
       <div hidden={route.page !== 'ask'}><Ask revision={eventRevision} /></div>
-      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page === 'organizer' ? <Organizer onEventsChanged={eventsChanged} /> : route.page === 'saved' ? <PlannedScreen /> : null}
+      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page === 'organizer' ? <Organizer onEventsChanged={eventsChanged} /> : route.page === 'saved' ? <Saved revision={eventRevision} /> : null}
     </main>
     <footer>Made for Trojans. Source-linked details. Unknowns stay unknown.</footer>
   </>;

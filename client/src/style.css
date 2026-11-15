@@ -57,7 +57,7 @@ footer { color: var(--muted); padding-block: 36px; font-size: 12px; }
 .filters button { min-height: 44px; padding: 10px 16px; border: 1px solid #84796c; border-radius: 24px; background: white; color: var(--muted); cursor: pointer; }
 .filters button[aria-pressed='true'] { background: var(--cardinal); border-color: var(--cardinal); color: white; }
 .filters .reset-filter { border-color: transparent; text-decoration: underline; }
-.filter-note, .save-pending { color: var(--muted); font-size: 14px; }
+.filter-note { color: var(--muted); font-size: 14px; }
 .date-group { margin-top: 32px; }
 .date-heading { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
 .event-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
@@ -114,6 +114,14 @@ summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
 .match-reason { border-top: 1px solid var(--border); padding: 20px; margin: 0; color: var(--muted); }
 .exclusion-notes { padding-left: 20px; }
 .exclusion-notes li { padding-block: 6px; }
+.saved-events { margin-block: 32px; }
+.saved-grid { margin-top: 20px; align-items: start; }
+.saved-grid > .panel, .saved-grid > .event-card { margin: 0; min-width: 0; }
+.card-title { font-size: 23px; margin-block: 18px 12px; }
+.card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.card-actions .text-link { margin: 0; }
+.save-button[aria-pressed='true'] { background: #fff2c6; color: #725100; border-color: #725100; }
+.saved-storage-notice { max-width: 950px; overflow-wrap: anywhere; }
 @media (max-width: 740px) { .review-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 740px) { .event-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) {
