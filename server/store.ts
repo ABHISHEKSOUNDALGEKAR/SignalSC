@@ -17,6 +17,7 @@ export type StoredEvent = {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  suggestions?: string[]; // listing suggestions from flyer review, shown on the draft only
 };
 
 export type Flyer = { mimeType: string; bytes: Buffer };

@@ -220,6 +220,7 @@ export function apiRouter(store: Store) {
       id, status: 'draft', organizationId: org.organizationId, organizationName: org.organizationName,
       data: extracted.draft, flyerId, extractedBy: extracted.extractedBy, confirmation: null, externalId: null,
       createdAt: t, updatedAt: t, publishedAt: null,
+      suggestions: 'suggestions' in extracted ? extracted.suggestions : [],
     };
     await store.insert(record);
     const body: DraftResponse = { draft: toDraftRecord(record) };

@@ -47,11 +47,13 @@ function Evidence({ draft, field }: { draft: EventDraft; field: string }) {
     {evidence.map((item, index) => <div className="evidence" key={`${item.excerpt}-${index}`}><b>Flyer evidence</b>“{item.excerpt}”</div>)}
   </div>;
 }
+const friendlyLabels: Record<string, string> = { isFree: 'Admission cost', costDollars: 'Admission cost', costCents: 'Admission cost', yearStated: 'Year' };
 function fieldLabel(key: string): string {
+  if (friendlyLabels[key]) return friendlyLabels[key];
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
 }
-function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, missing, mode, onDirtyChange }: {
-  initial: EventDraft; onSave: (draft: EventDraft) => void; onPublish?: (draft: EventDraft) => void;
+function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, missing, mode, onDirtyChange, suggestions = [] }: {
+  initial: EventDraft; suggestions?: string[]; onSave: (draft: EventDraft) => void; onPublish?: (draft: EventDraft) => void;
   saving: boolean; publishing: boolean; message: string; missing: string[]; mode: 'draft' | 'event';
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -96,6 +98,7 @@ function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, m
         </div>
       </div>
       <aside className="review-aside"><h3>Review, don’t guess.</h3><p className="event-meta">Fields marked unknown stay unknown until you can verify them. Publishing clears review notes after you confirm the details.</p>
+        {suggestions.length > 0 && <><div className="divider-label">Make this listing stronger</div><ul className="event-meta">{suggestions.map((item, index) => <li key={index}>{item}</li>)}</ul></>}
         <div className="divider-label">Read-only details</div>
         <div className="field-label">Timezone</div><div className="field-value">America / Los Angeles</div>
         <div className="field-label" style={{ marginTop: 13 }}>Source kind</div><div className="field-value">{draft.sourceKind === 'engagesc' ? 'EngageSC' : draft.sourceKind === 'usc-calendar' ? 'USC Calendar' : 'Flyer'}</div>
@@ -257,7 +260,7 @@ export function OrganizerPage() {
           <div className="field"><label htmlFor="announcement">Or paste announcement text</label><textarea id="announcement" maxLength={10000} rows={4} value={text} onChange={e => setText(e.target.value)} placeholder="Paste the event copy from your announcement…" /></div>
           <div className="field"><label htmlFor="source-link">Source link (optional)</label><input id="source-link" type="url" placeholder="https://" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} /></div>
           {announcementDirty && <p className="event-meta" role="status">New announcement input · not saved until you create a review draft.</p>}
-          {uploading && <><div className="progress-track" aria-label="Reading the announcement"><span /></div><p className="event-meta" role="status">Reading the flyer and finding event details… This can take 5–15 seconds.</p></>}
+          {uploading && <><div className="progress-track" aria-label="Reading the announcement"><span /></div><p className="event-meta" role="status">Reading the flyer and finding event details… Each flyer is read and then checked against itself, so this can take 10–25 seconds.</p></>}
           {uploadError && <div className="inline-message" role="alert">{uploadError}</div>}
           <button className="btn btn-primary" onClick={() => void upload()} disabled={uploading}>{uploading ? 'Reading…' : 'Create review draft'}</button>
         </div>
@@ -273,7 +276,7 @@ export function OrganizerPage() {
     </>}
     {selected && <section><div className="section-head"><div><div className="eyebrow">Draft review · {selected.extractedBy === 'model' ? 'Extracted from flyer' : 'Manual entry'}</div><h2>Check every detail.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setSelected(null); setFormMessage(''); }}>Back to workspace</button></div>
       {selected.flyerUrl && <div className="source-card"><h3>Original flyer</h3><img className="flyer" src={selected.flyerUrl} alt={`Flyer for ${selected.draft.title || 'draft event'}`} /></div>}
-      <ReviewForm key={selected.id} initial={selected.draft} onSave={saveDraft} onPublish={publishDraft} saving={saveBusy} publishing={publishBusy} message={formMessage} missing={missing} mode="draft" onDirtyChange={setReviewDirty} />
+      <ReviewForm key={selected.id} initial={selected.draft} onSave={saveDraft} onPublish={publishDraft} saving={saveBusy} publishing={publishBusy} message={formMessage} missing={missing} mode="draft" onDirtyChange={setReviewDirty} suggestions={selected.suggestions} />
     </section>}
     {editEvent && <section><div className="section-head"><div><div className="eyebrow">Published event · {editEvent.status}</div><h2>Edit event details.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setEditEvent(null); setFormMessage(''); }}>Back to workspace</button></div>
       <ReviewForm key={editEvent.id} initial={editEvent} onSave={saveEvent} saving={saveBusy} publishing={false} message={formMessage} missing={missing} mode="event" onDirtyChange={setReviewDirty} />

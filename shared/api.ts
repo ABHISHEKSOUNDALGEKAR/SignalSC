@@ -12,6 +12,7 @@ export type DraftRecord = {
   organizationName: string;
   flyerUrl: string | null; // GET-able image URL, e.g. /api/flyers/<id>
   extractedBy: 'model' | 'manual';
+  suggestions: string[]; // ways to make the listing more complete; never applied automatically
   createdAt: string;
   updatedAt: string;
 };
