@@ -249,7 +249,7 @@ export function OrganizerPage() {
     <div className="organizer-intro"><div><div className="eyebrow">Organizer desk · Private workspace</div><h1 style={{ fontSize: 'clamp(38px,6vw,66px)' }}>Good to see you,<br />{session.organizationName}.</h1><p className="lede">Review the details, keep unknowns honest, then put the event on the map.</p></div><button className="btn btn-outline" disabled={uploading || saveBusy || publishBusy} onClick={() => void signOut()}>Sign out</button></div>
     {dataError && <ErrorNotice error={dataError} retry={() => void loadOrganizerData()} />}
     {!selected && !editEvent && <>
-      <ImportHealthPanel key={session.organizationId} />
+      <ImportHealthPanel key={session.organizationId} organizationId={session.organizationId} />
       {formMessage && <div className="inline-message success-message" role="status">{formMessage}</div>}
       <section className="form-panel"><h2>Start with the announcement</h2><p className="event-meta">Upload an image, paste the text, or include both. Extraction can take a few seconds.</p>
         <div className="upload-zone"><label className="field-label" htmlFor="flyer-file">Flyer image · PNG, JPEG, WebP, GIF · under 5 MB</label><input id="flyer-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e => setFile(e.target.files?.[0] ?? null)} />

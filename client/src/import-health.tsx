@@ -1,7 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FeedImportFailureCategory, FeedImportHealth, ImportHealthOutcome, ImportHealthResponse } from '../../shared/api';
 import { api } from './api';
 import { dateLabel, ErrorNotice } from './common';
+import { feedHealthAlert, feedHealthAlertLabel, reconcileFeedAlerts } from './feed-alerts';
+
+type AlertSettings = { enabled: boolean; alertedSources: ('engagesc' | 'usc-calendar')[] };
+function settingsKey(organizationId: string) { return `signalsc-feed-alerts:v1:${organizationId}`; }
+function readAlertSettings(organizationId: string): AlertSettings {
+  try {
+    const data = JSON.parse(localStorage.getItem(settingsKey(organizationId)) ?? 'null');
+    if (data && typeof data === 'object') return {
+      enabled: data.enabled === true,
+      alertedSources: Array.isArray(data.alertedSources)
+        ? data.alertedSources.filter((source: unknown): source is AlertSettings['alertedSources'][number] => source === 'engagesc' || source === 'usc-calendar')
+        : [],
+    };
+  } catch { /* Corrupt or blocked storage keeps alerts off. */ }
+  return { enabled: false, alertedSources: [] };
+}
+function writeAlertSettings(organizationId: string, settings: AlertSettings) {
+  localStorage.setItem(settingsKey(organizationId), JSON.stringify(settings));
+}
 
 const feedFailureLabels: Record<FeedImportFailureCategory, string> = {
   request_failed: 'Feed request failed',
@@ -40,17 +59,94 @@ const labels: Record<ImportHealthOutcome, string> = {
   deferred: 'Not attempted after an earlier batch stopped',
 };
 
-export function ImportHealthPanel() {
+export function ImportHealthPanel({ organizationId }: { organizationId: string }) {
   const [data, setData] = useState<ImportHealthResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  async function load() {
-    setLoading(true); setError('');
-    try { setData(await api.importHealth()); }
-    catch (e) { setData(null); setError(e instanceof Error ? e.message : 'Import health could not be loaded.'); }
-    finally { setLoading(false); }
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertStorageError, setAlertStorageError] = useState(false);
+  const requestInFlight = useRef(false);
+  function notifyForHealth(response: ImportHealthResponse) {
+    const settings = readAlertSettings(organizationId);
+    if (!settings.enabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const current = reconcileFeedAlerts(response.feedImports, settings.alertedSources);
+    // Persist the active outage set before displaying anything. Another organizer tab
+    // sees this update and will not send the same alert again.
+    writeAlertSettings(organizationId, { enabled: true, alertedSources: current.activeSources });
+    for (const alert of current.notifications) {
+      const source = alert.source === 'engagesc' ? 'EngageSC' : 'USC Calendar';
+      try {
+        const notification = new Notification(`${source} calendar needs attention`, {
+          body: feedHealthAlertLabel(alert.category),
+          tag: `signalsc-feed-alert:${organizationId}:${alert.source}`,
+        });
+        notification.onclick = () => { window.focus(); notification.close(); };
+      } catch { setAlertMessage('The browser could not show a notification. Check this calendar’s status below.'); }
+    }
   }
-  useEffect(() => { void load(); }, []);
+  async function load() {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setLoading(true); setError('');
+    try {
+      const response = await api.importHealth();
+      setData(response);
+      try { notifyForHealth(response); } catch { setAlertStorageError(true); }
+    }
+    catch (e) { setData(null); setError(e instanceof Error ? e.message : 'Import health could not be loaded.'); }
+    finally { requestInFlight.current = false; setLoading(false); }
+  }
+  useEffect(() => {
+    try { setAlertsEnabled(readAlertSettings(organizationId).enabled); } catch { setAlertStorageError(true); }
+    void load();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 60_000);
+    const refresh = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [organizationId]);
+  async function enableAlerts() {
+    setAlertMessage('');
+    if (!('Notification' in window)) {
+      setAlertMessage('This browser does not support notifications. The status page will continue updating while open.');
+      return;
+    }
+    try {
+      const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
+      if (permission !== 'granted') {
+        setAlertMessage(permission === 'denied'
+          ? 'Notifications are blocked in browser settings. Allow them for SignalSC, then try again.'
+          : 'Notification permission was not granted. You can enable it in browser settings.');
+        return;
+      }
+      const settings = readAlertSettings(organizationId);
+      writeAlertSettings(organizationId, { ...settings, enabled: true });
+      setAlertsEnabled(true);
+      if (data) notifyForHealth(data);
+      setAlertMessage('Browser alerts are on. Keep SignalSC open and signed in to receive them.');
+    } catch {
+      setAlertStorageError(true);
+      setAlertMessage('Alerts could not be saved in this browser. Allow site storage and try again.');
+    }
+  }
+  function disableAlerts() {
+    try {
+      writeAlertSettings(organizationId, { enabled: false, alertedSources: [] });
+      setAlertsEnabled(false);
+      setAlertMessage('Browser alerts are off.');
+      setAlertStorageError(false);
+    } catch {
+      setAlertStorageError(true);
+      setAlertMessage('The alert preference could not be changed. Allow site storage and try again.');
+    }
+  }
   return <section className="form-panel" aria-labelledby="import-health-heading">
     <div className="section-head" style={{ marginTop: 0 }}>
       <h2 id="import-health-heading">Calendar import health</h2>
@@ -60,6 +156,14 @@ export function ImportHealthPanel() {
     </div>
     <h3>Feed imports</h3>
     <p className="event-meta">Feed fetching and event saving are reported separately from AI detail recovery. Status contains safe categories only; feed URLs and raw errors are never shown. Freshness reflects the last fully completed feed import.</p>
+    <div className="import-alert-controls">
+      <div><strong>Calendar health alerts</strong><p className="event-meta">Opt in to browser notifications for stale feeds or two consecutive failures. Checks run while you are signed in with this page open.</p></div>
+      {alertsEnabled
+        ? <button className="btn btn-outline" type="button" onClick={disableAlerts}>Turn off alerts</button>
+        : <button className="btn btn-primary" type="button" onClick={() => void enableAlerts()}>Enable browser alerts</button>}
+    </div>
+    {alertStorageError && <div className="inline-message" role="alert">Browser storage is unavailable, so alert preferences and duplicate protection may not persist.</div>}
+    {alertMessage && <p className="event-meta" role="status">{alertMessage}</p>}
     {data && data.feedImports.length === 0 && <p>No feed import status recorded yet. The next scheduled import will record a summary.</p>}
     {data?.feedImports.map(feed => <div key={feed.source} className="source-card">
       <h3>{feed.source === 'engagesc' ? 'EngageSC' : 'USC Calendar'}</h3>
@@ -71,6 +175,8 @@ export function ImportHealthPanel() {
       <ul>
         <li><strong>Feed fetch:</strong> {feedStageLabel(feed.fetch.status, feed.fetch.failureCategory)}</li>
         <li><strong>Event saving:</strong> {feedStageLabel(feed.eventSave.status, feed.eventSave.failureCategory)}</li>
+        <li><strong>Consecutive failed imports:</strong> {feed.consecutiveFailures}</li>
+        {feedHealthAlert(feed) && <li className="inline-message"><strong>Alert condition:</strong> {feedHealthAlertLabel(feedHealthAlert(feed)!.category)}</li>}
       </ul>
     </div>)}
     <h3>AI detail recovery</h3>

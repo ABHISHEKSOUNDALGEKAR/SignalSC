@@ -118,12 +118,15 @@ export type ImportHealthRun = {
 };
 export const feedImportFailureCategories = ['request_failed', 'invalid_feed', 'event_save_failed'] as const;
 export type FeedImportFailureCategory = typeof feedImportFailureCategories[number];
+export type FeedImportAlertCategory = FeedImportFailureCategory | 'stale' | 'never_completed';
 export type FeedImportStageStatus = 'pending' | 'succeeded' | 'failed' | 'not_attempted';
 export type FeedImportHealth = {
   source: 'engagesc' | 'usc-calendar';
   lastAttemptAt: string;
   lastCompletedAt: string | null;
   freshness: 'fresh' | 'stale' | 'never';
+  consecutiveFailures: number;
+  lastFailureCategory: FeedImportFailureCategory | null;
   fetch: {
     status: Exclude<FeedImportStageStatus, 'not_attempted'>;
     failureCategory: Extract<FeedImportFailureCategory, 'request_failed' | 'invalid_feed'> | null;

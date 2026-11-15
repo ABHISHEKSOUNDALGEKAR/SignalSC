@@ -72,6 +72,8 @@ test('real HTTP organizer lifecycle, student discovery, and ownership boundaries
     assert.equal(summary.runs[0].outcomes[0].retryEligible, 0);
     assert.equal(summary.runs[0].outcomes[0].outcome, 'not_configured');
     assert.equal(summary.feedImports[0].fetch.failureCategory, 'request_failed');
+    assert.equal(summary.feedImports[0].consecutiveFailures, 1);
+    assert.equal(summary.feedImports[0].lastFailureCategory, 'request_failed');
     assert.equal(summary.feedImports[0].eventSave.status, 'not_attempted');
     assert.equal((await request('/organizer/import-health', 'POST', {}, cookieA)).status, 404);
     await store.setMeta('import-health:v1:engagesc', 'private-broken-metadata');

@@ -27,6 +27,8 @@ const FEED_FRESH_MS = 2 * 60 * 60_000;
 const feedSnapshotSchema = z.object({
   checkedAt: stamp,
   lastCompletedAt: stamp.nullable(),
+  consecutiveFailures: z.number().int().nonnegative().default(0),
+  lastFailureCategory: z.enum(['request_failed', 'invalid_feed', 'event_save_failed']).nullable().default(null),
   fetch: z.object({
     status: z.enum(['pending', 'succeeded', 'failed']),
     failureCategory: z.enum(['request_failed', 'invalid_feed']).nullable(),
@@ -84,6 +86,8 @@ export function feedImportHealthRecorder(store: Store, source: Source, now: Date
   const snapshot: FeedSnapshot = {
     checkedAt: now.toISOString(),
     lastCompletedAt: null,
+    consecutiveFailures: 0,
+    lastFailureCategory: null,
     fetch: { status: 'pending', failureCategory: null },
     eventSave: { status: 'not_attempted', failureCategory: null },
   };
@@ -94,13 +98,17 @@ export function feedImportHealthRecorder(store: Store, source: Source, now: Date
     },
     fetchFailed(category: Extract<FeedImportFailureCategory, 'request_failed' | 'invalid_feed'>) {
       snapshot.fetch = { status: 'failed', failureCategory: category };
+      snapshot.lastFailureCategory = category;
     },
     saveFailed() {
       snapshot.eventSave = { status: 'failed', failureCategory: 'event_save_failed' };
+      snapshot.lastFailureCategory = 'event_save_failed';
     },
     completed() {
       snapshot.eventSave = { status: 'succeeded', failureCategory: null };
       snapshot.lastCompletedAt = snapshot.checkedAt;
+      snapshot.consecutiveFailures = 0;
+      snapshot.lastFailureCategory = null;
     },
     async save() {
       try {
@@ -113,7 +121,16 @@ export function feedImportHealthRecorder(store: Store, source: Source, now: Date
           const priorCompletion = parsed.success ? parsed.data.lastCompletedAt : null;
           const completedAt = [priorCompletion, snapshot.lastCompletedAt]
             .filter((value): value is string => value !== null).sort().at(-1) ?? null;
-          const value: FeedSnapshot = { ...snapshot, lastCompletedAt: completedAt };
+          const sameAttemptAlreadyFailed = parsed.success && parsed.data.checkedAt === snapshot.checkedAt
+            && (parsed.data.fetch.status === 'failed' || parsed.data.eventSave.status === 'failed');
+          const value: FeedSnapshot = {
+            ...snapshot,
+            lastCompletedAt: completedAt,
+            consecutiveFailures: snapshot.lastCompletedAt ? 0
+              : snapshot.lastFailureCategory
+                ? parsed.success ? parsed.data.consecutiveFailures + (sameAttemptAlreadyFailed ? 0 : 1) : 1
+                : parsed.success ? parsed.data.consecutiveFailures : 0,
+          };
           if (await store.compareMeta(feedKey(source), previous.value, JSON.stringify(value))) return;
         }
         console.warn('Feed import health summary could not be saved.');
@@ -152,6 +169,8 @@ export async function readImportHealth(store: Store, now = Date.now()): Promise<
         lastAttemptAt: snapshot.checkedAt,
         lastCompletedAt: snapshot.lastCompletedAt,
         freshness: age === null ? 'never' : age <= FEED_FRESH_MS ? 'fresh' : 'stale',
+        consecutiveFailures: snapshot.consecutiveFailures,
+        lastFailureCategory: snapshot.lastFailureCategory,
         fetch: snapshot.fetch,
         eventSave: snapshot.eventSave,
       });

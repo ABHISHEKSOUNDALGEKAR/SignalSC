@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
 
 .discover-search { margin: 0 0 24px; }
+.import-alert-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px; margin:16px 0; border:1px solid var(--line); border-radius:14px; background:var(--card); }
+.import-alert-controls p { margin:6px 0 0; max-width:620px; }
+@media (max-width: 600px) { .import-alert-controls { align-items:flex-start; flex-direction:column; } }
 .registration-dialog { width: min(540px, calc(100% - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); color: var(--ink); box-shadow: 0 20px 70px #21181440; }
 .registration-dialog::backdrop { background: #21181480; }
 .registration-dialog h2 { font-family: 'Playfair Display', Georgia, serif; font-size: 30px; line-height: 1.15; margin: 14px 0; }
