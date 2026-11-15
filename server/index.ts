@@ -32,7 +32,10 @@ app.use((error: Error & { status?: number; type?: string }, _req: express.Reques
 const port = Number(process.env.PORT ?? 3001);
 app.listen(port, '0.0.0.0', () => {
   console.log(`SignalSC service listening on ${port} (${store.mode} store)`);
-  // Public EngageSC events are imported in the background. Set ENGAGESC_ICS_URL=off to disable.
-  const feedUrl = process.env.ENGAGESC_ICS_URL || DEFAULT_FEED_URL;
-  if (feedUrl !== 'off') scheduleFeedImport(store, feedUrl);
+  // Public event feeds, imported and refreshed in the background.
+  // EVENT_FEED_URLS (comma-separated) overrides the list; ENGAGESC_ICS_URL=off disables all.
+  const feeds = process.env.ENGAGESC_ICS_URL === 'off' ? []
+    : process.env.EVENT_FEED_URLS ? process.env.EVENT_FEED_URLS.split(',')
+    : [process.env.ENGAGESC_ICS_URL || DEFAULT_FEED_URL, 'https://calendar.usc.edu/calendar.ics'];
+  for (const feedUrl of feeds.map(u => u.trim()).filter(Boolean)) scheduleFeedImport(store, feedUrl);
 });

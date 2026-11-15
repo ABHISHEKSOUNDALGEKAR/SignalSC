@@ -11,7 +11,7 @@ Express API in `server/`, contract in `shared/api.ts`.
 | `model.ts` | OpenAI-compatible chat client (JSON mode, image input, timeout) |
 | `extract.ts` | Flyer/announcement → validated draft; unknowns stay null and are listed in `uncertainties` |
 | `search.ts` | Question → constraints (model, with a rules fallback) → deterministic filters → grounded answer |
-| `importer.ts` | Public EngageSC feed → `source-imported` events, refreshed on start and hourly |
+| `importer.ts` | Public EngageSC and calendar.usc.edu feeds → `source-imported` events, each refreshed on start and hourly |
 | `import-engagesc.ts` | One-off import: `npm run import:engagesc [-- <feed-url>]` |
 | `ics.ts` | `.ics` export and feed parsing |
 | `time.ts` | America/Los_Angeles conversions, including daylight saving |
@@ -38,6 +38,8 @@ Express API in `server/`, contract in `shared/api.ts`.
 - Configure private codes through Replit Secrets as `Organization Name=private-code;Another Org=another-private-code`. Codes must be unique and at most 200 characters. Names must produce unique lowercase, hyphenated identifiers; keep names stable to preserve event ownership. Invalid entries and the former demo codes are rejected without logging their values.
 
 ## Imported events
+
+USC's public calendar (`https://calendar.usc.edu/calendar.ics`) is imported the same way, labeled `usc-calendar`, and usually includes building locations. Each feed keeps its own refresh timestamp, and `EVENT_FEED_URLS` (comma-separated) overrides the list.
 
 The school-wide EngageSC feed is public and updates hourly. Each record keeps its EngageSC link as `sourceUrl`, its host as `organizationName`, and is labeled `source-imported`.
 
