@@ -1,5 +1,6 @@
 // Minimal client for any OpenAI-compatible chat completions endpoint.
 // Works with Replit AI Integrations (AI_INTEGRATIONS_OPENAI_*), OpenAI, or Gemini's OpenAI-compatible endpoint.
+import { ModelBudget, ModelCapacityError, readModelLimit } from './model-budget';
 
 type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
 export type ChatMessage = { role: 'system' | 'user'; content: string | ContentPart[] };
@@ -13,9 +14,23 @@ export const modelConfigured = Boolean(apiKey);
 
 export class ModelUnavailableError extends Error {}
 
+export class ModelLimitError extends ModelUnavailableError {}
+
+const budget = new ModelBudget(
+  readModelLimit('MODEL_REQUEST_BUDGET', 120, 0),
+  readModelLimit('MODEL_BUDGET_WINDOW_MS', 3_600_000, 1),
+  readModelLimit('MODEL_MAX_CONCURRENT', 4, 1),
+);
+
 // Returns parsed JSON from the model. Callers must validate the shape.
 export async function completeJson(messages: ChatMessage[], maxTokens = 1500): Promise<unknown> {
   if (!modelConfigured) throw new ModelUnavailableError('Model is not configured.');
+  let release: () => void;
+  try { release = budget.acquire(); }
+  catch (error) {
+    if (error instanceof ModelCapacityError) throw new ModelLimitError(error.message);
+    throw error;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -51,5 +66,6 @@ export async function completeJson(messages: ChatMessage[], maxTokens = 1500): P
       : 'Model returned an invalid response or could not be reached.');
   } finally {
     clearTimeout(timer);
+    release();
   }
 }

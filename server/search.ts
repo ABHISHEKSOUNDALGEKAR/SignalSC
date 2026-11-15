@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { EventRecord, ExclusionNote, SearchConstraints, SearchResponse, SearchResult } from '../shared/api';
-import { completeJson, modelConfigured } from './model';
+import { completeJson, modelConfigured, ModelLimitError } from './model';
 import { campusTimeToDate, formatCampusDay, formatCampusTime, localParts, minutesToLabel, startOfCampusDay, toCampusIso } from './time';
 
 const DAY = 86_400_000;
@@ -209,9 +209,17 @@ async function writeAnswer(query: string, results: EventRecord[]): Promise<{ ans
 export async function search(query: string, events: EventRecord[], now = new Date()): Promise<SearchResponse> {
   let constraints: SearchConstraints;
   let interpretedBy: SearchResponse['interpretedBy'] = 'rules';
+  let fallbackReason: SearchResponse['fallbackReason'] = modelConfigured ? undefined : 'not_configured';
+  const disclose = (answer: string) => fallbackReason
+    ? `${interpretedBy === 'rules' ? 'Using basic search matching' : 'Using a basic search summary'} because AI is ${fallbackReason === 'capacity' ? 'at its usage limit' : fallbackReason === 'not_configured' ? 'not configured' : 'temporarily unavailable'}. ${answer}`
+    : answer;
   if (modelConfigured) {
     try { constraints = await interpretWithModel(query, now); interpretedBy = 'model'; }
-    catch (error) { console.warn('Query interpretation fell back to rules:', (error as Error).message); constraints = interpretWithRules(query, now); }
+    catch (error) {
+      fallbackReason = error instanceof ModelLimitError ? 'capacity' : 'unavailable';
+      console.warn('Query interpretation fell back to basic matching:', fallbackReason);
+      constraints = interpretWithRules(query, now);
+    }
   } else constraints = interpretWithRules(query, now);
 
   const { matches, excluded } = applyConstraints(events, constraints);
@@ -222,19 +230,23 @@ export async function search(query: string, events: EventRecord[], now = new Dat
     const left = excluded.reduce((n, x) => n + x.count, 0);
     const extra = left ? ` ${left} related event${left === 1 ? ' was' : 's were'} left out (see why below).` : '';
     return {
-      answer: `I couldn't find a published event that matches (${constraintSummary.join(', ')}).${extra} Try a wider time range or fewer filters.`,
-      constraints, constraintSummary, results: [], excluded, noMatch: true, interpretedBy,
+      answer: disclose(`I couldn't find a published event that matches (${constraintSummary.join(', ')}).${extra} Try a wider time range or fewer filters.`),
+      constraints, constraintSummary, results: [], excluded, noMatch: true, interpretedBy, fallbackReason,
     };
   }
 
   let answer = `Found ${matches.length} matching event${matches.length === 1 ? '' : 's'}${matches.length > top.length ? `; here are the top ${top.length}` : ''}.`;
   let reasons = new Map<string, string>();
-  if (modelConfigured) {
+  if (modelConfigured && !fallbackReason) {
     try {
       const written = await writeAnswer(query, top);
       if (written) { answer = written.answer; reasons = written.reasons; }
-    } catch (error) { console.warn('Answer writing fell back to template:', (error as Error).message); }
+      else fallbackReason = 'unavailable';
+    } catch (error) {
+      fallbackReason = error instanceof ModelLimitError ? 'capacity' : 'unavailable';
+      console.warn('Answer writing fell back to a basic summary:', fallbackReason);
+    }
   }
   const results: SearchResult[] = top.map(event => ({ event, reason: reasons.get(event.id) ?? ruleReason(event, constraints) }));
-  return { answer, constraints, constraintSummary, results, excluded, noMatch: false, interpretedBy };
+  return { answer: disclose(answer), constraints, constraintSummary, results, excluded, noMatch: false, interpretedBy, fallbackReason };
 }

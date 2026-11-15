@@ -77,6 +77,8 @@ export type SearchResponse = {
   excluded: ExclusionNote[];
   noMatch: boolean;
   interpretedBy: 'model' | 'rules';
+  // Present when either AI stage was skipped or failed; answer also discloses it.
+  fallbackReason?: 'capacity' | 'unavailable' | 'not_configured';
 };
 
 // ---------- Responses ----------

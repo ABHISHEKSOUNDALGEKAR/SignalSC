@@ -25,3 +25,11 @@
 - The React interface exposes Ask, Discover, event details, device-local Saved events, and the organizer review/publish workspace. Navigation uses hash routes. The web manifest supplies app metadata; offline operation is not supported.
 - Run `node --import tsx --test tests/*.test.ts` for API lifecycle, ownership, empty-state, campus-time, and model adapter regression checks. Tests isolate their data and provider configuration from the running development app.
 - Keep the existing React/Vite, Express, shared types, npm, and PostgreSQL structure.
+
+## AI usage limits
+
+- All model consumers share a fail-fast admission gate: `MODEL_REQUEST_BUDGET` (default 120 attempts), `MODEL_BUDGET_WINDOW_MS` (default 3,600,000), and `MODEL_MAX_CONCURRENT` (default 4). Set the request budget to 0 to disable paid calls; invalid values fail startup.
+- Each outbound attempt counts, including errors, timeouts and invalid responses. Search may use two attempts (interpretation and summary); extraction uses one. Calls rejected by the gate never reach the provider or enter a queue.
+- Exhausted/busy extraction returns 503 without saving a draft. Search retains deterministic results, discloses basic matching or a basic summary in its answer, and supplies `fallbackReason` (`capacity`, `unavailable`, or `not_configured`) alongside `interpretedBy`.
+- Limits are shared across clients in one server process, not persisted or coordinated across replicas; restart resets the budget. This is not a dollar/token ceiling. Set provider-side billing controls for a hard spending limit.
+- `npm run test:ai` includes simulated budget exhaustion, boundary reset, concurrency, failure cleanup and search/extraction regression checks. It makes no paid requests.

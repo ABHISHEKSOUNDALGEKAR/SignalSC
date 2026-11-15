@@ -144,7 +144,7 @@ export function apiRouter(store: Store) {
     } catch (error) {
       if (!(error instanceof ModelUnavailableError)) throw error;
       console.warn('Extraction failed:', error.message);
-      return res.status(503).json({ error: 'Flyer reading is temporarily unavailable. Try again, or paste the announcement text.' });
+      return res.status(503).json({ error: 'Flyer reading is temporarily unavailable or at its usage limit. Please try again later.' });
     }
     const id = newId();
     let flyerId: string | null = null;
