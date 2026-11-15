@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_FEED_URL, scheduleFeedImport } from './importer';
 import { apiRouter } from './routes';
 import { createStore } from './store';
 
@@ -29,4 +30,9 @@ app.use((error: Error & { status?: number; type?: string }, _req: express.Reques
   res.status(error.status ?? 500).json({ error: error.status === 400 ? 'Invalid request body.' : 'Request could not be completed.' });
 });
 const port = Number(process.env.PORT ?? 3001);
-app.listen(port, '0.0.0.0', () => console.log(`Trojan Signal service listening on ${port} (${store.mode} store)`));
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Trojan Signal service listening on ${port} (${store.mode} store)`);
+  // Public EngageSC events are imported in the background. Set ENGAGESC_ICS_URL=off to disable.
+  const feedUrl = process.env.ENGAGESC_ICS_URL || DEFAULT_FEED_URL;
+  if (feedUrl !== 'off') scheduleFeedImport(store, feedUrl);
+});

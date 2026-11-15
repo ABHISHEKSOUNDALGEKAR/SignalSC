@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type express from 'express';
 import type { OrganizerSession } from '../shared/api';
+import { isProduction } from './env';
 
 // Organizer access codes come from ORGANIZER_ACCESS_CODES, formatted as
 //   Organization Name=code;Another Organization=another-code
@@ -11,7 +12,6 @@ type Organization = { id: string; name: string; code: string };
 const COOKIE = 'ts_organizer';
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const DEV_CODES = 'Demo Org A=demo-a;Demo Org B=demo-b';
-const isProduction = process.env.NODE_ENV === 'production';
 
 function slug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
