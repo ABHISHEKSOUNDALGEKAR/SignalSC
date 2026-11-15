@@ -23,6 +23,31 @@ export const degradedFlyerCases = [
   },
 ] as const;
 
+export const sourceConflictCases = [
+  {
+    id: 'conflicting-date',
+    file: 'live-flyer-conflicting-date.png',
+    title: 'Robotics Night',
+    text: 'Robotics Night. Saturday, November 21, 2026 at 6:30 PM. Location: Leavey Library.',
+    field: 'date',
+    imageClaim: 'Friday, November 20, 2026',
+    announcementClaim: 'Saturday, November 21, 2026',
+    expectedStartsAt: null,
+    expectedLocation: 'Leavey Library',
+  },
+  {
+    id: 'conflicting-venue',
+    file: 'live-flyer-conflicting-venue.png',
+    title: 'Robotics Night',
+    text: 'Robotics Night. Friday, November 20, 2026 at 6:30 PM. Location: Doheny Library.',
+    field: 'location',
+    imageClaim: 'Leavey Library',
+    announcementClaim: 'Doheny Library',
+    expectedStartsAt: '2026-11-20T18:30:00-08:00',
+    expectedLocation: null,
+  },
+] as const;
+
 export function assertDegradedFlyer(draft: EventDraft, fixture: typeof degradedFlyerCases[number]) {
   const label = `${fixture.id} flyer`;
   assert.equal(draft.title, fixture.title, `${label}: readable title must be retained`);
@@ -43,4 +68,15 @@ export function assertDegradedFlyer(draft: EventDraft, fixture: typeof degradedF
         `${label}: evidence may only quote the readable title`);
     }
   }
+}
+
+export function assertSourceConflict(draft: EventDraft, fixture: typeof sourceConflictCases[number]) {
+  const label = `${fixture.id} flyer and announcement`;
+  assert.equal(draft.title, fixture.title, `${label}: shared event title should remain available`);
+  assert.equal(draft.startsAt, fixture.expectedStartsAt, `${label}: conflicting date must remain unknown`);
+  assert.equal(draft.location, fixture.expectedLocation, `${label}: conflicting venue must remain unknown`);
+  assert.ok(draft.uncertainties.some(note => /image and announcement text disagree/i.test(note)),
+    `${label}: source disagreement must be flagged`);
+  assert.ok(!draft.evidence.some(item => item.field === fixture.field),
+    `${label}: evidence must not present either disputed value as settled`);
 }

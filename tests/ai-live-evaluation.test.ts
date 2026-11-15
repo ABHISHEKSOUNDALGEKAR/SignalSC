@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { assertDegradedFlyer, degradedFlyerCases } from '../scripts/live-flyer-cases';
+import {
+  assertDegradedFlyer, assertSourceConflict, degradedFlyerCases, sourceConflictCases,
+} from '../scripts/live-flyer-cases';
 import type { EventDraft } from '../shared/events';
 
 function draftFor(fixture: typeof degradedFlyerCases[number]): EventDraft {
@@ -56,6 +58,36 @@ test('neither degraded flyer may invent unprinted optional facts', () => {
       assert.throws(() => assertDegradedFlyer({ ...draft, [field]: 'invented' }, fixture));
     }
     assert.throws(() => assertDegradedFlyer({ ...draft, food: 'advertised' }, fixture));
+  }
+});
+
+test('source-conflict fixtures pair synthetic image claims with contradictory announcement text', async () => {
+  for (const fixture of sourceConflictCases) {
+    const png = await readFile(new URL(`./fixtures/${fixture.file}`, import.meta.url));
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    const svg = await readFile(new URL(`./fixtures/${fixture.file.replace('.png', '.svg')}`, import.meta.url), 'utf8');
+    assert.ok(svg.includes(fixture.title));
+    assert.ok(svg.includes(fixture.imageClaim));
+    assert.ok(fixture.text.includes(fixture.announcementClaim));
+
+    const draft = {
+      ...draftFor(degradedFlyerCases[0]),
+      title: fixture.title,
+      startsAt: fixture.expectedStartsAt,
+      location: fixture.expectedLocation,
+      uncertainties: ['Flyer image and announcement text disagree about the event date. Please confirm.'],
+      evidence: [{ field: 'title', excerpt: fixture.title }],
+    };
+    assert.doesNotThrow(() => assertSourceConflict(draft, fixture));
+    if (fixture.field === 'date') {
+      assert.throws(() => assertSourceConflict({ ...draft, startsAt: '2026-11-20T18:30:00-08:00' }, fixture));
+    } else {
+      assert.throws(() => assertSourceConflict({ ...draft, location: 'Leavey Library' }, fixture));
+    }
+    assert.throws(() => assertSourceConflict({ ...draft, uncertainties: [] }, fixture));
+    assert.throws(() => assertSourceConflict({
+      ...draft, evidence: [{ field: fixture.field, excerpt: fixture.imageClaim }],
+    }, fixture));
   }
 });
 

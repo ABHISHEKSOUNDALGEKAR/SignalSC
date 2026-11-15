@@ -5,7 +5,9 @@ import express from 'express';
 import type { EventDraft } from '../shared/events';
 import type { SearchResponse } from '../shared/api';
 import type { StoredEvent } from '../server/store';
-import { assertDegradedFlyer, degradedFlyerCases } from './live-flyer-cases';
+import {
+  assertDegradedFlyer, assertSourceConflict, degradedFlyerCases, sourceConflictCases,
+} from './live-flyer-cases';
 
 // Opt-in only: this script spends real provider credits. Fixtures never enter
 // the running app or its database, and actual organizer credentials are unused.
@@ -149,6 +151,18 @@ assert.equal(crowded.draft.location, null, 'Crowded flyer locations must not be 
 assert.ok(crowded.draft.uncertainties.some(note => /multiple|several|events|ambiguous/i.test(note)), 'Multiple events must be flagged');
 assertEvidenceInSource(crowded.draft.evidence, 'CAMPUS CLUBS • THIS WEEK Robotics Night November 20, 2026 6:30 PM TCC 450 Film Screening November 21, 2026 8:00 PM Leavey Library', 'crowded flyer', false);
 console.log('PASS live crowded image: separate events are not combined');
+
+for (const fixture of sourceConflictCases) {
+  const image = await readFile(new URL(`../tests/fixtures/${fixture.file}`, import.meta.url));
+  const result = await extractDraft({
+    imageBase64: image.toString('base64'),
+    mimeType: 'image/png',
+    text: fixture.text,
+  }, now);
+  assert.equal(result.extractedBy, 'model', `${fixture.id}: fallback extraction cannot pass`);
+  assertSourceConflict(result.draft, fixture);
+  console.log(`PASS live ${fixture.id}: conflicting source detail remains unknown and flagged`);
+}
 
 for (const fixture of degradedFlyerCases) {
   const image = await readFile(new URL(`../tests/fixtures/${fixture.file}`, import.meta.url));

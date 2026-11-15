@@ -54,6 +54,8 @@ credits and executes the expanded evaluation.
 | Embedded instructions | Text asking the model to invent event facts does not supply those facts. |
 | Blurry flyer | Clear title is retained while blurred date, time, and location remain unknown and are flagged. |
 | Crowded flyer | Two equally prominent event listings with different dates, times, and locations are not combined. |
+| Conflicting image and announcement date | A matching event title does not make either source authoritative; the start stays unknown and the disagreement is flagged. |
+| Conflicting image and announcement venue | The date remains available, but the disputed location stays unknown and the disagreement is flagged. |
 | Sideways flyer | A fully visible flyer rotated 90° retains “Orbit Sketch Night”, November 22, 2026 at 8:15 PM Pacific, and TCC 450; unprinted fields stay unknown. |
 | Low-light flyer | The illuminated “Lantern Poetry Circle” title is retained, but shadowed date, time, and venue stay unknown and unreadability/poor lighting is flagged. Evidence may quote only the readable title. |
 | Constrained search | Interpretation applies free, advertised food, beginner-friendly, tonight, and after-5 PM constraints; only the eligible record reaches the answer call. |
@@ -80,11 +82,25 @@ the safe result is an unknown date and venue with a warning.
 `scripts/live-flyer-cases.ts` holds these expectations and assertions, shared
 with `tests/ai-live-evaluation.test.ts`. The ordinary `npm run test:ai` checks
 that bad answers fail those assertions, the PNGs exist, and the live runner
-refuses to start without its consent flag. These offline checks do **not**
-establish that BluesMinds can read either new image. The two new provider calls
-have not been run as part of this change. A full successful expanded run now
-makes 15 JSON completions (10 extractions and 5 search completions), with no
-retries; it stops at the first failure, so credit usage can be lower.
+refuses to start without its consent flag. `tests/ai-configured.test.ts` also
+stubs the model response to prove that a reported date or location disagreement
+clears that field, removes its evidence, and adds a confirmation warning even
+if the model also returned a selected value. If a multimodal response omits the
+source-comparison result, date, time, and location are withheld rather than
+assuming the sources agree. These offline checks do **not** establish that
+BluesMinds detects disagreements in the images. The new provider calls have
+not been run as part of this change. A full successful expanded run
+now makes 17 JSON completions (12 extractions and 5 search completions), with
+no retries; it stops at the first failure, so credit usage can be lower.
+
+`live-flyer-conflicting-date.svg` and `live-flyer-conflicting-venue.svg` are
+editable synthetic originals; their paired PNGs are sent alongside
+contradictory synthetic announcement text. The date case disagrees only about
+the event date, while the venue case disagrees only about the location. The
+live acceptance helper requires the disputed field to remain unknown and an
+image-versus-announcement warning to be present. Live checks remain opt-in:
+the explicit `--confirm-live` flag is required, and the account owner must
+approve spending for each expanded evaluation.
 
 To regenerate the small PNG fixtures locally with ImageMagick and DejaVu Sans:
 
