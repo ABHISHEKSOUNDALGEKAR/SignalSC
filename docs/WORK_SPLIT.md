@@ -34,7 +34,7 @@ Organizer (cookie session; send `credentials: 'same-origin'`, the default for sa
 
 Errors: `{ error: string }` with 400/401/403/404/422/503.
 
-Local demo access codes (development only): `demo-a` → "Demo Org A", `demo-b` → "Demo Org B".
+Organizer access codes must be supplied privately through `ORGANIZER_ACCESS_CODES` in Replit Secrets. There are no demo defaults; tests use isolated synthetic codes.
 
 ## Real events while developing
 

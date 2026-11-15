@@ -13,9 +13,11 @@
 
 ## Configuration and current limitations
 
+- Import setup verified PostgreSQL and public-feed imports. After secure AI key setup, the running preview and `/api/health` report `status: ok`, `mode: live`, and `modelConfigured: true`. All 24 simulated AI tests and the type check passed. The user declined credit-spending verification, so live BluesMinds extraction and search remain unverified; key presence is not proof of provider access or successful completions.
+
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
-- Development organizer access defaults to the demo codes documented in `.env.example`. Configure private `ORGANIZER_ACCESS_CODES` before real use; production has no demo-code fallback.
+- Private `ORGANIZER_ACCESS_CODES` are supplied through Replit Secrets. There are no demo defaults: development sign-in is disabled when unset, and production refuses to start without codes, `SESSION_SECRET`, or `DATABASE_URL`. Codes and organization identifiers must be unique; keep organization names stable because they determine event ownership.
 - AI extraction and natural-language search require `MODEL_API_KEY`, or the existing supported `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL`. Optional model settings are documented in `.env.example`. No AI credentials were invented or added during import setup.
 - The user approved BluesMinds as the AI provider. Match its key to `MODEL_BASE_URL=https://api.bluesminds.com/v1` and the verified `MODEL_NAME=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`; the adapter uses this model's documented non-reasoning mode. Keep credentials in Secrets.
 - `npm run test:ai:live -- --confirm-live` spends real provider credits on isolated synthetic fixtures. Do not add it to automatic validation; the ordinary `test:ai` suite uses simulated responses.
@@ -23,3 +25,11 @@
 - The React interface exposes Ask, Discover, event details, device-local Saved events, and the organizer review/publish workspace. Navigation uses hash routes. The web manifest supplies app metadata; offline operation is not supported.
 - Run `node --import tsx --test tests/*.test.ts` for API lifecycle, ownership, empty-state, campus-time, and model adapter regression checks. Tests isolate their data and provider configuration from the running development app.
 - Keep the existing React/Vite, Express, shared types, npm, and PostgreSQL structure.
+
+## AI usage limits
+
+- All model consumers share a fail-fast admission gate: `MODEL_REQUEST_BUDGET` (default 120 attempts), `MODEL_BUDGET_WINDOW_MS` (default 3,600,000), and `MODEL_MAX_CONCURRENT` (default 4). Set the request budget to 0 to disable paid calls; invalid values fail startup.
+- Each outbound attempt counts, including errors, timeouts and invalid responses. Search may use two attempts (interpretation and summary); extraction uses one. Calls rejected by the gate never reach the provider or enter a queue.
+- Exhausted/busy extraction returns 503 without saving a draft. Search retains deterministic results, discloses basic matching or a basic summary in its answer, and supplies `fallbackReason` (`capacity`, `unavailable`, or `not_configured`) alongside `interpretedBy`.
+- Limits are shared across clients in one server process, not persisted or coordinated across replicas; restart resets the budget. This is not a dollar/token ceiling. Set provider-side billing controls for a hard spending limit.
+- `npm run test:ai` includes simulated budget exhaustion, boundary reset, concurrency, failure cleanup and search/extraction regression checks. It makes no paid requests.

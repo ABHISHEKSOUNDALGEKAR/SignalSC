@@ -26,7 +26,8 @@ Express API in `server/`, contract in `shared/api.ts`.
 - Search filters are applied in code. The model only interprets the question and words the answer; result ids it returns are checked against the retrieved set. No-match answers are written without the model.
 - Unknown cost never matches "free"; unknown food never matches "food"; unknown suitability never matches "beginner-friendly". Excluded counts are reported.
 - Flyer and feed text is passed to the model as data with instructions not to follow it. Keys stay on the server.
-- In production (`npm start`), `DATABASE_URL`, `SESSION_SECRET` and `ORGANIZER_ACCESS_CODES` must be set; the development access codes are never active.
+- In production (`npm start` or `REPLIT_DEPLOYMENT=1`), startup requires `DATABASE_URL`, `SESSION_SECRET` and valid `ORGANIZER_ACCESS_CODES`. There are no demo-code defaults in any environment.
+- Configure private codes through Replit Secrets as `Organization Name=private-code;Another Org=another-private-code`. Codes must be unique and at most 200 characters. Names must produce unique lowercase, hyphenated identifiers; keep names stable to preserve event ownership. Invalid entries and the former demo codes are rejected without logging their values.
 
 ## Imported events
 
@@ -48,3 +49,5 @@ Also verified by hand: the Postgres statements against an embedded Postgres engi
 ## Environment
 
 See `.env.example`. Without `DATABASE_URL` the server uses memory; without a model key, uploads create an empty draft for manual entry and search uses the rules parser.
+
+In development, missing organizer codes disable sign-in rather than enabling demo credentials. `node --import tsx --test tests/auth-config.test.ts tests/event-flows.test.ts` verifies configuration guards and the configured login, draft privacy, publishing, editing, and cancellation boundaries using isolated test settings and in-memory records. It never uses private organizer codes or writes to the application database.

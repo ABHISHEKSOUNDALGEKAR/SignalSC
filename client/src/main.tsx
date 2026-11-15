@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AskPage, DiscoverPage, EventDetailPage, SavedPage } from './pages';
 import { OrganizerPage } from './organizer';
@@ -84,14 +84,23 @@ function App() {
     };
   }, []);
   const active = route.page === 'event' ? 'discover' : route.page;
+  const current = (page: string) => active === page ? 'page' as const : undefined;
+  // Pages are hash routes, so the skip link moves focus itself instead of following its href.
+  const skipToContent = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    const main = document.getElementById('main-content');
+    main?.focus();
+    main?.scrollIntoView();
+  };
   return <div className="app-shell">
+    <a className="skip-link" href="#main-content" onClick={skipToContent}>Skip to content</a>
     <header className="topbar">
       <a className="wordmark" href="#/ask" aria-label="Trojan Signal home"><span className="seal" aria-hidden="true">T</span><span>Trojan Signal<small>USC, happening</small></span></a>
       <nav className="nav-links" aria-label="Main navigation">
-        <a className={`nav-link ${active === 'ask' ? 'active' : ''}`} href="#/ask">Ask</a>
-        <a className={`nav-link ${active === 'discover' ? 'active' : ''}`} href="#/discover">Discover</a>
-        <a className={`nav-link ${active === 'saved' ? 'active' : ''}`} href="#/saved">Saved</a>
-        <a className={`nav-link organizer ${active === 'organizer' ? 'active' : ''}`} href="#/organizer">Organizers</a>
+        <a className={`nav-link ${active === 'ask' ? 'active' : ''}`} aria-current={current('ask')} href="#/ask">Ask</a>
+        <a className={`nav-link ${active === 'discover' ? 'active' : ''}`} aria-current={current('discover')} href="#/discover">Discover</a>
+        <a className={`nav-link ${active === 'saved' ? 'active' : ''}`} aria-current={current('saved')} href="#/saved">Saved</a>
+        <a className={`nav-link organizer ${active === 'organizer' ? 'active' : ''}`} aria-current={current('organizer')} href="#/organizer">Organizers</a>
       </nav>
     </header>
     {route.page === 'ask' && <AskPage />}

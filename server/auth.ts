@@ -11,24 +11,36 @@ type Organization = { id: string; name: string; code: string };
 
 const COOKIE = 'ts_organizer';
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
-const DEV_CODES = 'Demo Org A=demo-a;Demo Org B=demo-b';
 
 function slug(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
 }
 
 function loadOrganizations(): Organization[] {
-  const raw = process.env.ORGANIZER_ACCESS_CODES ?? (isProduction ? '' : DEV_CODES);
-  return raw.split(';').map(entry => entry.trim()).filter(Boolean).flatMap(entry => {
+  const raw = process.env.ORGANIZER_ACCESS_CODES?.trim();
+  if (!raw) {
+    if (isProduction) throw new Error('ORGANIZER_ACCESS_CODES is required in production.');
+    return [];
+  }
+  const ids = new Set<string>();
+  const codes = new Set<string>();
+  return raw.split(';').map(entry => entry.trim()).filter(Boolean).map(entry => {
     const eq = entry.lastIndexOf('=');
-    if (eq <= 0) return [];
+    if (eq <= 0) throw new Error('Invalid ORGANIZER_ACCESS_CODES format. Use Organization Name=access-code entries separated by semicolons.');
     const name = entry.slice(0, eq).trim();
     const code = entry.slice(eq + 1).trim();
-    return name && code ? [{ id: slug(name), name, code }] : [];
+    if (!name || !code || code.length > 200) throw new Error('ORGANIZER_ACCESS_CODES entries require a name and a code of 1–200 characters.');
+    if (code === 'demo-a' || code === 'demo-b') throw new Error('Replace demo organizer access codes with private codes.');
+    const id = slug(name);
+    if (ids.has(id) || codes.has(code)) throw new Error('ORGANIZER_ACCESS_CODES requires distinct organization identifiers and unique codes.');
+    ids.add(id);
+    codes.add(code);
+    return { id, name, code };
   });
 }
 
 const organizations = loadOrganizations();
+if (isProduction && !organizations.length) throw new Error('ORGANIZER_ACCESS_CODES must contain at least one organization.');
 if (!organizations.length) console.warn('No organizer access codes configured; organizer sign-in is disabled.');
 
 function sessionSecret(): string {

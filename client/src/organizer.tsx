@@ -2,7 +2,7 @@ import { cloneElement, useEffect, useState, type FormEvent, type ReactElement, t
 import type { DraftRecord, EventRecord } from './api';
 import { api, ApiError } from './api';
 import type { EventDraft } from '../../shared/events';
-import { dateLabel, EmptyState, ErrorNotice, LoadingList, unknown } from './common';
+import { dateLabel, EmptyState, ErrorNotice, LoadingList, locationLabel } from './common';
 import { campusInput as dateInput, campusInstant } from './time';
 import { confirmLeavingWithUnsavedChanges, setUnsavedChange } from './unsaved-changes';
 
@@ -125,6 +125,7 @@ export function OrganizerPage() {
   const [formMessage, setFormMessage] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
   const [dataError, setDataError] = useState('');
+  const [sessionError, setSessionError] = useState('');
   const [reviewDirty, setReviewDirty] = useState(false);
   const announcementDirty = text.length > 0 || sourceUrl.length > 0 || file !== null;
 
@@ -138,10 +139,10 @@ export function OrganizerPage() {
   }, [reviewDirty]);
 
   async function checkSession() {
-    setChecking(true);
+    setChecking(true); setSessionError('');
     try { setSession(await api.session()); } catch (e) {
       setSession(null);
-      if (!(e instanceof ApiError && e.status === 401)) setSigninError(e instanceof Error ? e.message : 'Could not check your session.');
+      if (!(e instanceof ApiError && e.status === 401)) setSessionError(e instanceof Error ? e.message : 'Could not check your session.');
     } finally { setChecking(false); }
   }
   async function loadOrganizerData() {
@@ -234,14 +235,15 @@ export function OrganizerPage() {
     catch (e) { setDataError(e instanceof Error ? e.message : 'Could not update event status.'); }
   }
 
-  if (checking) return <main className="page organizer-wrap"><div className="hero"><div className="eyebrow">Organizer desk</div><h1>Your events,<br />in good hands.</h1></div><LoadingList count={2} /></main>;
-  if (!session) return <main className="page organizer-wrap">
+  if (checking) return <main id="main-content" tabIndex={-1} className="page organizer-wrap"><div className="hero"><div className="eyebrow">Organizer desk</div><h1>Your events,<br />in good hands.</h1></div><LoadingList count={2} /></main>;
+  if (!session) return <main id="main-content" tabIndex={-1} className="page organizer-wrap">
     <section className="hero"><div className="eyebrow">For the people who make campus happen</div><h1>Turn a flyer<br />into a plan.</h1><p className="lede">Sign in with your organization’s access code to review event details, then publish what students can trust.</p><div className="hero-rule" /></section>
+    {sessionError && <ErrorNotice error={sessionError} retry={() => void checkSession()} />}
     <div className="content-grid"><form className="form-panel" onSubmit={signIn}><h2>Organizer sign in</h2><p className="event-meta">This private workspace is for verified campus organizers.</p><div className="field"><label htmlFor="access-code">Organization access code</label><input id="access-code" autoComplete="current-password" value={accessCode} onChange={e => setAccessCode(e.target.value)} required /></div>{signinError && <div className="inline-message" role="alert">{signinError}</div>}<button className="btn btn-primary" disabled={signing}>{signing ? 'Checking code…' : 'Continue'}</button></form>
       <aside className="side-note"><div className="mini-star">✦</div><h3>People are planning around this.</h3><p>Review every extracted detail. Uncertain fields stay highlighted, and source evidence stays right beside the form.</p></aside></div>
   </main>;
 
-  return <main className="page organizer-wrap">
+  return <main id="main-content" tabIndex={-1} className="page organizer-wrap">
     <div className="organizer-intro"><div><div className="eyebrow">Organizer desk · Private workspace</div><h1 style={{ fontSize: 'clamp(38px,6vw,66px)' }}>Good to see you,<br />{session.organizationName}.</h1><p className="lede">Review the details, keep unknowns honest, then put the event on the map.</p></div><button className="btn btn-outline" disabled={uploading || saveBusy || publishBusy} onClick={() => void signOut()}>Sign out</button></div>
     {dataError && <ErrorNotice error={dataError} retry={() => void loadOrganizerData()} />}
     {!selected && !editEvent && <>
@@ -263,7 +265,7 @@ export function OrganizerPage() {
       </section>
       <section className="form-panel"><div className="section-head" style={{ marginTop: 0 }}><h2>Your events</h2><span className="muted">{events.length} total</span></div>
         {loadingData ? <LoadingList count={2} /> : events.length === 0 ? <EmptyState title="Nothing published yet">After review and publish, your events will appear here.</EmptyState> :
-          <div className="table-list">{events.map(event => <div className="draft-row" key={event.id}><div><h3>{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt)} · {unknown(event.location)}</div></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'flex-end' }}><span className={`badge ${event.status === 'cancelled' ? 'cancelled' : 'confirmed'}`}>{event.status}</span><button className="btn btn-outline" onClick={() => { setEditEvent(event); setFormMessage(''); }}>Edit</button><button className={`btn ${event.status === 'cancelled' ? 'btn-quiet' : 'btn-danger'}`} onClick={() => void cancelEvent(event)}>{event.status === 'cancelled' ? 'Restore' : 'Cancel'}</button></div></div>)}</div>}
+          <div className="table-list">{events.map(event => <div className="draft-row" key={event.id}><div><h3>{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt, 'Time not listed')} · {locationLabel(event)}</div></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'flex-end' }}><span className={`badge ${event.status === 'cancelled' ? 'cancelled' : 'confirmed'}`}>{event.status}</span><button className="btn btn-outline" onClick={() => { setEditEvent(event); setFormMessage(''); }}>Edit</button><button className={`btn ${event.status === 'cancelled' ? 'btn-quiet' : 'btn-danger'}`} onClick={() => void cancelEvent(event)}>{event.status === 'cancelled' ? 'Restore' : 'Cancel'}</button></div></div>)}</div>}
       </section>
     </>}
     {selected && <section><div className="section-head"><div><div className="eyebrow">Draft review · {selected.extractedBy === 'model' ? 'Extracted from flyer' : 'Manual entry'}</div><h2>Check every detail.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setSelected(null); setFormMessage(''); }}>Back to workspace</button></div>

@@ -5,6 +5,7 @@ import express from 'express';
 
 // Isolated process fixtures: no real credentials, provider calls, or database writes.
 process.env.NODE_ENV = 'development';
+delete process.env.REPLIT_DEPLOYMENT;
 process.env.ORGANIZER_ACCESS_CODES = 'Test Campus A=test-campus-a;Test Campus B=test-campus-b';
 process.env.SESSION_SECRET = 'isolated-event-flow-test-secret';
 delete process.env.DATABASE_URL;
