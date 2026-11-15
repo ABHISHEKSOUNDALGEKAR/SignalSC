@@ -58,11 +58,13 @@ Without a key, extraction returns a manual draft. Provider failures return 503
 for extraction and leave no draft behind. Search falls back to deterministic
 rules when its model request fails. Provider response bodies are not logged.
 
-**Server (`server/`)**: implemented. Organizer access-code sign-in, flyer/announcement extraction into private drafts, review and publish, edit and cancel with ownership checks, constrained natural-language search, `.ics` export, and an importer for public calendar feeds. It has been exercised locally in memory mode with a stand-in model. Postgres and a model key are supplied through environment variables (see `.env.example`). See `docs/SERVER.md`.
+**Server (`server/`)**: implemented. Organizer access-code sign-in, flyer/announcement extraction into private drafts with source evidence, review and publish, edit and cancel with ownership checks, constrained natural-language search, `.ics` export, and an hourly import of the public EngageSC feed. Postgres and a model key are supplied through environment variables (see `.env.example`). Live extraction and search have been checked against the configured provider (see `docs/LIVE_AI_VERIFICATION.md`). Details in `docs/SERVER.md`.
 
-**Client (`client/`)**: in progress. The shell exists; the screens in `docs/WORK_SPLIT.md` (Ask, Discover, event detail, Saved, Organizer) are being built against the contract in `shared/api.ts`.
+**Client (`client/`)**: implemented. Ask, Discover with date and filter chips, event detail with source links and calendar download, device-local Saved events, and the organizer workspace for upload, review, publish, edit and cancel. Installable on a phone through the web manifest.
 
-Not included yet: student accounts, real email or SMS delivery, calendar synchronization, and moderated community posts. Demo events are labeled as demo data.
+**Data**: public EngageSC events are imported automatically and labeled as source-imported. Organizer-published events are labeled as organizer confirmed. Most EngageSC locations are only shown after USC sign-in, so those events link back to EngageSC for the location.
+
+Not included yet: student accounts, email or SMS delivery, calendar synchronization, and moderated community posts.
 
 ## Product flow
 
@@ -111,4 +113,4 @@ docs/SERVER.md         Server modules and guarantees
 
 MVP: flyer extraction, reviewed publication, source-linked cards, constrained search, truthful empty results, organizer edit/cancel, saves, and `.ics` downloads.
 
-Stretch: EngageSC importer after testing the public feed, additional USC source connector, weekly digest preview, PWA installation. Real email, calendar synchronization, moderated community posts, and wider pilots come later.
+Stretch: an additional USC source connector, weekly digest preview, real email, calendar synchronization, moderated community posts, and wider pilots.
