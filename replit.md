@@ -13,7 +13,7 @@
 
 ## Configuration and current limitations
 
-- Import setup was verified with the running preview and `/api/health`: PostgreSQL is connected (`mode: live`), the public feed imports events, and no model key is configured. The production build, 33 server tests, and 24 simulated AI tests passed. No live AI requests were made.
+- Import setup verified PostgreSQL and public-feed imports. After secure AI key setup, the running preview and `/api/health` report `status: ok`, `mode: live`, and `modelConfigured: true`. All 24 simulated AI tests and the type check passed. The user declined credit-spending verification, so live BluesMinds extraction and search remain unverified; key presence is not proof of provider access or successful completions.
 
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
