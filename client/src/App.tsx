@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pages, readRoute, type Page } from './lib/navigation';
 import { Discover } from './screens/Discover';
 import { PlannedScreen } from './screens/Placeholders';
 import { EventDetail } from './screens/EventDetail';
+import { Organizer } from './screens/Organizer';
 
 const labels: Record<Page, string> = { discover: 'Discover', ask: 'Ask', saved: 'Saved', organizer: 'For organizers' };
 const introductions = {
@@ -15,6 +16,8 @@ const introductions = {
 
 export function App() {
   const [route, setRoute] = useState(() => readRoute(window.location.hash));
+  const [eventRevision, setEventRevision] = useState(0);
+  const eventsChanged = useCallback(() => setEventRevision(value => value + 1), []);
   const backHref = useRef(`#${route.page === 'event' ? 'discover' : route.page}`);
   const heading = useRef<HTMLHeadingElement>(null);
   const currentRoute = useRef(route);
@@ -45,8 +48,8 @@ export function App() {
     <main id="main-content"><p className="eyebrow">A clearer way to find your people</p>
       <h1 ref={heading} tabIndex={-1}>{intro.title}</h1><p className="intro">{intro.body}</p>
       {/* Preserve browsing state while viewing details or another destination. */}
-      <div hidden={route.page !== 'discover'}><Discover /></div>
-      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page !== 'discover' ? <PlannedScreen page={route.page} /> : null}
+      <div hidden={route.page !== 'discover'}><Discover revision={eventRevision} /></div>
+      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page === 'organizer' ? <Organizer onEventsChanged={eventsChanged} /> : route.page !== 'discover' ? <PlannedScreen page={route.page} /> : null}
     </main>
     <footer>Made for Trojans. Source-linked details. Unknowns stay unknown.</footer>
   </>;

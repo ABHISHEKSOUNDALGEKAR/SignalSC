@@ -5,9 +5,9 @@ import { getEvents } from '../lib/api';
 import { groupEvents, initialFilters, type Filters } from '../lib/events';
 import { useResource } from '../lib/useResource';
 
-export function Discover() {
+export function Discover({ revision = 0 }: { revision?: number }) {
   const [filters, setFilters] = useState<Filters>(initialFilters);
-  const load = useCallback((signal: AbortSignal) => getEvents(signal, filters), [filters]);
+  const load = useCallback((signal: AbortSignal) => getEvents(signal, filters), [filters, revision]);
   const { state, retry } = useResource(load);
   const filtered = filters.date !== 'all' || filters.free || filters.food;
   return <section className="discover" aria-labelledby="discover-heading">

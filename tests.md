@@ -119,6 +119,7 @@ Use current/frozen future dates for normal cases so events do not silently becom
 
 - [ ] Sign out clears private UI. Switching from demo organization A to B does not retain A's drafts/events; a delayed A response cannot repopulate B's screen.
 - [ ] Session expiry during review clears private views and requires sign-in without publishing under a different organization.
+- [ ] A transient session-check network failure preserves the open review and unsaved edits, displays a connection error, and allows retry. An explicit 401 or organization change still clears private views. Repeat this when changing session handling.
 - [ ] With disposable records, a direct unauthorized request for another organization's private draft/edit is denied by the server. Hiding a button alone does not satisfy authorization.
 - [ ] Source/description/evidence containing HTML-like text renders as text and executes nothing. Browser assets/network contain no model keys or server secrets.
 - [ ] Discover/detail still work after publish/edit/cancel. Check that drafts and cancelled records are absent from applicable public responses; report server failures.
@@ -326,3 +327,49 @@ Completion gate: PASS or INCOMPLETE
 **Pending dependencies / limitations:** Save/Unsave controls and persistence remain Step 5 and are intentionally not marked complete in `STEP.md`. Published-deployment verification, full organizer workflows, other browser engines, screen readers, and physical phones remain later-step checks. The server's existing behavior intentionally keeps cancelled event details readable; feed exclusion and the cancellation notice passed. No backend blocker found in this step.
 
 **Completion gate: PASS for the implemented Step 2 scope; Save integration remains pending Step 5.** Stop here; do not begin Step 3 until instructed.
+
+### Step 3 — November 14, 2026
+
+**Scope / environment:** organizer session, draft creation/review/publication, My events editing/cancellation, and refresh of public data after changes. Branch `frontend-stuff`, working-tree changes based on `a21f49c`. Node 22.17.1; real local Express memory backend through Vite at `http://127.0.0.1:5174`; model extraction disabled. Chrome on macOS at desktop width and 320 × 725 responsive emulation. All test uploads, drafts, publications, edits, and cancellations used disposable synthetic data. No server/shared/package implementation, real database, deployment, or submission was changed.
+
+**Automated commands / results — PASS:**
+
+- `node --import tsx --test client/tests/*.test.tsx`: **38 passed, 0 failed**, including all 26 earlier regressions and 12 organizer tests.
+- `TZ=Asia/Tokyo node --import tsx --test client/tests/organizer.test.tsx`: **12 passed, 0 failed**.
+- `node --import tsx --test client/tests/organizer-live.test.ts`: the real API lifecycle test passed, with assertions covering session restoration, invalid codes, two independent organization cookies, private draft visibility, foreign-owner 403, signed-out 401, missing-record 404, 422 missing-field publication, corrected publication, search visibility, edits, cancellation and public exclusion, image-only/image-plus-text requests, flyer serving, and 204 sign-out cookie clearing. The script refuses to mutate a non-memory or model-enabled backend.
+- `npm run typecheck`: passed. `npm run build`: passed, including its typecheck. Final unit suite and build were repeated after the session-network recovery fix.
+- `git diff --check`: passed at handoff.
+- Inspected client imports and searched the built client for server model-key variable names and the development session secret; no matches. Server authentication/model code is not imported into the app bundle. Demo codes were entered only into the local development sign-in screen, not embedded in client code.
+
+**Unit / render coverage:** money conversions (including 0.29 → 29), invalid/negative/over-precision values, null/zero/false/food distinctions, nullable clears, URL and length validation, end/start ordering, unchanged instant/millisecond preservation, Los Angeles winter/summer round-trips, explicit fall-fold occurrence choice, invalid dates and spring gaps, deadline conversion, allowed MIME types and raw/base64/text limits, data-prefix removal, FileReader success/failure/abort, duplicate-operation prevention, invalidation of late work, stale aborted session errors, changed/expired organization handling, PATCH-before-publish ordering, failed/aborted PATCH blocking publish, save-only behavior, safe evidence/announcement rendering, manual mode, and 422 missing-field markup. Evidence/provenance/warnings are excluded from correction PATCHes because the existing server owns those fields.
+
+**Browser evidence — PASS:**
+
+1. Initial no-session screen showed sign-in. An invalid code showed the server error; `demo-a` opened Demo Org A. Password-manager prompts were dismissed without saving credentials.
+2. Created a text draft with a labeled synthetic announcement. Manual extraction fallback, uncertainty notice, and the original announcement were visible.
+3. Save and publish on the incomplete draft produced the server's 422 list (`title`, `startsAt`, `location`), associated field messages, and focus on Title. The announcement and editable form remained intact.
+4. Entered title, location, Los Angeles start date/time (November 16, 2026, 6:00 PM), and admission 0.29. Saved the draft, reloaded, and resumed it from Private drafts. Session, date/time, location, and amount were restored from the API.
+5. Published the resumed draft. My events showed Published; Discover immediately showed the matching event and $0.29. Edited its title, saved, confirmed the updated record, then tested both Keep event and Confirm cancellation. My events showed Cancelled and Discover refreshed to an empty feed.
+6. Selected `/private/tmp/trojan-synthetic-flyer.png` through the native file chooser and submitted it with synthetic text. The resulting review displayed the stored flyer and submitted announcement. API integration separately covered image-only requests; unit tests exercised FileReader errors and aborts.
+7. At 320px width, inspected the manual-mode/uncertainty notices, review fields and dropdowns, and source display. No visible horizontal page overflow was observed. This was emulation, not a physical phone.
+8. Entered an unsaved title, switched DevTools to Offline, and attempted Save draft. Connection/session-check errors appeared while the form and exact title stayed present. Restored No throttling and saved again; Draft saved and the same title appeared in the list. This also checks recovery after a background session-check failure.
+9. Signed out with a review open: private form/list state disappeared. Signed into `demo-b`: Demo Org B showed no private drafts or published events from A. A second tab restored B's session; signing out there caused the original tab to show sign-in with its private workspace cleared, verifying cross-tab invalidation.
+10. Public lifecycle regressions passed through the real API: drafts never appeared publicly; the new publication was found by the search endpoint; editing updated public details; cancellation removed it from the feed while leaving an explicitly cancelled detail record readable.
+
+**Fixes / rerun evidence:**
+
+- Initial typecheck caught two conditions that tried to render an `unknown` error value directly; converted the conditions to booleans and typechecking passed.
+- While reviewing failure recovery, found that transient session-check failures could clear a signed-in workspace. Changed that behavior to preserve the current review on a network failure, with a visible retry message. Explicit 401/organization changes still clear it. The offline → retained edit → successful retry journey above passed after the fix.
+- Added session-change/abort checks before private work and a unit regression ensuring a late aborted 401 cannot clear a later organization's session. Authentication mutations suppress overlapping session polling; sign-out clears the current private workspace immediately.
+- Sandbox networking initially blocked the real integration run; rerunning the same scoped test outside the sandbox passed.
+
+**Reproduction / remaining limits:**
+
+- Run the normal local API in memory mode without a model key and Vite on port 5174 before the explicit live command. The live script intentionally creates only synthetic records and leaves test drafts/cancelled listings in the disposable memory store; they disappear on backend restart. Do not run it on real organizer data. A local synthetic PNG was created under `/private/tmp` for the native chooser check.
+- Cloud extraction quality, its real 5–15 second latency, and a live model-service 503 were **NOT RUN** because no extraction key was configured. Client busy/duplicate/abort logic and structured 503 propagation/save-before-publish failure are covered by deterministic unit tests; actual manual fallback and uploads passed against the server. No model quality or latency claim is made.
+- Evidence/uncertainty display used contract-shaped synthetic render fixtures; manual-mode local responses contain no model-generated evidence excerpts. The UI preserves the warnings during edits. The server intentionally clears extraction uncertainties on publication.
+- Original pasted text remains available in the current creation/review session. Resumed drafts rely on the flyer, stored description, and evidence available in the existing contract; the server has no original-announcement-text response field.
+- A naturally expired signed cookie was not awaited in the browser. Session-401 behavior was checked at the API boundary and in client guard tests; actual sign-out invalidation was verified across tabs. Cross-browser, physical-phone, screen-reader, and deployed-site checks remain later-stage validation.
+- Ask UI, saves, and PWA remain Steps 4–6. Successful publication is searchable through the existing backend API; the Ask screen is still explicitly pending.
+
+**Completion gate: PASS for Step 3 frontend and local manual-mode integration.** Automatic model extraction remains an environment-dependent validation limit. Stop here; do not begin Step 4 until instructed.

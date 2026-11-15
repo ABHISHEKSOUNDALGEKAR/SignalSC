@@ -79,36 +79,38 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 ### Session and draft creation
 
-- [ ] Restore the session through `GET /api/organizer/session`; treat 401 as signed out.
-- [ ] Sign in with `{ accessCode }` through `POST /api/organizer/session`; show the organization and useful invalid-code errors.
-- [ ] Sign out with `DELETE /api/organizer/session` and clear private client state. If a session expires, require sign-in and do not leave private screens populated for another organization.
-- [ ] Accept flyer files or pasted announcement text, with an optional source URL.
-- [ ] Validate against the current shared request schema: supported image formats, required input, text limits, and the base64 length limit. Explain invalid inputs before submission.
-- [ ] Convert an image to base64 without the `data:` prefix, include its supported `mimeType`, and submit `CreateDraftRequest` to `POST /api/organizer/drafts`.
-- [ ] Show honest progress/busy messaging during the expected 5–15 second extraction. Prevent duplicate submissions and provide recovery on failure.
-- [ ] Support manual review/entry when the response reports `extractedBy: 'manual'`; extraction availability must not prevent correcting the draft.
-- [ ] List and reopen existing private drafts using `GET /api/organizer/drafts`.
+- [x] Restore the session through `GET /api/organizer/session`; treat 401 as signed out.
+- [x] Sign in with `{ accessCode }` through `POST /api/organizer/session`; show the organization and useful invalid-code errors.
+- [x] Sign out with `DELETE /api/organizer/session` and clear private client state. If a session expires, require sign-in and do not leave private screens populated for another organization.
+- [x] Accept flyer files or pasted announcement text, with an optional source URL.
+- [x] Validate against the current shared request schema: supported image formats, required input, text limits, and the base64 length limit. Explain invalid inputs before submission.
+- [x] Convert an image to base64 without the `data:` prefix, include its supported `mimeType`, and submit `CreateDraftRequest` to `POST /api/organizer/drafts`.
+- [x] Show honest progress/busy messaging during the expected 5–15 second extraction. Prevent duplicate submissions and provide recovery on failure.
+- [x] Support manual review/entry when the response reports `extractedBy: 'manual'`; extraction availability must not prevent correcting the draft.
+- [x] List and reopen existing private drafts using `GET /api/organizer/drafts`.
 
 ### Review and publication
 
-- [ ] Build an editable form for all relevant `EventDraft` fields, including explicit unknown options for nullable and three-state values.
-- [ ] Show the flyer or submitted text alongside the review when available. Show `evidence` excerpts beside their corresponding fields and make `uncertainties` prominent; show unmatched uncertainty messages in a general review area.
-- [ ] Preserve evidence and provenance during edits. Do not invent evidence or erase warnings merely because a field was focused.
-- [ ] Convert dollar amounts to integer `costCents` accurately; preserve the distinction between blank/unknown and zero/free.
-- [ ] Convert event times between Los Angeles form values and offset-bearing ISO timestamps correctly, including registration deadlines.
-- [ ] Save corrections with `PATCH /api/organizer/drafts/:id`. Persist the latest edits successfully before publishing.
-- [ ] Publish with `POST /api/organizer/drafts/:id/publish`.
-- [ ] On 422, display the server's `missing` fields clearly, associate them with form controls where possible, and retain the user's edits.
-- [ ] On success, show the published result and refresh relevant client data so it appears in Discover and can be found through Ask.
+- [x] Build an editable form for all relevant `EventDraft` fields, including explicit unknown options for nullable and three-state values.
+- [x] Show the flyer or submitted text alongside the review when available. Show `evidence` excerpts beside their corresponding fields and make `uncertainties` prominent; show unmatched uncertainty messages in a general review area.
+- [x] Preserve evidence and provenance during edits. Do not invent evidence or erase warnings merely because a field was focused.
+- [x] Convert dollar amounts to integer `costCents` accurately; preserve the distinction between blank/unknown and zero/free.
+- [x] Convert event times between Los Angeles form values and offset-bearing ISO timestamps correctly, including registration deadlines.
+- [x] Save corrections with `PATCH /api/organizer/drafts/:id`. Persist the latest edits successfully before publishing.
+- [x] Publish with `POST /api/organizer/drafts/:id/publish`.
+- [x] On 422, display the server's `missing` fields clearly, associate them with form controls where possible, and retain the user's edits.
+- [x] On success, show the published result and refresh relevant client data so it appears in Discover and can be found through Ask.
 
 ### My events
 
-- [ ] Load the organization's events with `GET /api/organizer/events`, including cancelled records.
-- [ ] Edit using `PATCH /api/organizer/events/:id` and `UpdateEventRequest`.
-- [ ] Provide a clear cancel action using `{ cancelled: true }`, prevent accidental activation, and display the resulting cancelled status.
-- [ ] Refresh affected views after edit/cancel. Handle 401/403/404 errors without pretending the operation succeeded.
+- [x] Load the organization's events with `GET /api/organizer/events`, including cancelled records.
+- [x] Edit using `PATCH /api/organizer/events/:id` and `UpdateEventRequest`.
+- [x] Provide a clear cancel action using `{ cancelled: true }`, prevent accidental activation, and display the resulting cancelled status.
+- [x] Refresh affected views after edit/cancel. Handle 401/403/404 errors without pretending the operation succeeded.
 
 **Done when:** an organizer can sign in, create or resume a draft, inspect evidence, correct unknowns, publish, edit, cancel, and sign out. A second organization does not see the first organization's cached private data. Server permission failures remain visible and cannot be bypassed by UI state.
+
+**Step 3 completed:** see the Step 3 run in `tests.md`. Organizer sessions, image/text drafts, review, save-before-publish, My events, editing, cancellation, and public-feed refresh are implemented. Browser and real local API checks used disposable synthetic memory records. The API search check finds published records; the Ask screen remains Step 4. Automatic model extraction was not configured locally, so real upload/manual fallback and contract-shaped evidence rendering were verified separately. Original pasted text is available during the current creation/review; the API does not provide an original-text field when resuming a draft. No Step 4 work started. Stopped here awaiting the user’s instruction.
 
 ## Step 4 — Ask
 
