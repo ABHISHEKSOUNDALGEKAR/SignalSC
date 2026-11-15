@@ -13,7 +13,7 @@
 
 ## Configuration and current limitations
 
-- Import setup verified PostgreSQL and public-feed imports. After secure AI key setup, the running preview and `/api/health` report `status: ok`, `mode: live`, and `modelConfigured: true`. All 24 simulated AI tests and the type check passed. The user declined credit-spending verification, so live BluesMinds extraction and search remain unverified; key presence is not proof of provider access or successful completions.
+- Current import setup verified the running preview, PostgreSQL, and public-feed imports (290 new events). `/api/health` reports `status: ok`, `mode: live`, and `modelConfigured: false`. The type check, 33 server tests, and 35 simulated AI tests passed. `MODEL_API_KEY` and `ORGANIZER_ACCESS_CODES` are missing in this workspace: organizer sign-in is disabled, search uses basic matching, and extraction requires manual entry. No paid provider checks were run; historical live-check records do not verify this workspace's current configuration.
 
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
