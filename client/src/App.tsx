@@ -4,6 +4,7 @@ import { Discover } from './screens/Discover';
 import { PlannedScreen } from './screens/Placeholders';
 import { EventDetail } from './screens/EventDetail';
 import { Organizer } from './screens/Organizer';
+import { Ask } from './screens/Ask';
 
 const labels: Record<Page, string> = { discover: 'Discover', ask: 'Ask', saved: 'Saved', organizer: 'For organizers' };
 const introductions = {
@@ -21,11 +22,12 @@ export function App() {
   const backHref = useRef(`#${route.page === 'event' ? 'discover' : route.page}`);
   const heading = useRef<HTMLHeadingElement>(null);
   const currentRoute = useRef(route);
-  const discoverScroll = useRef(0);
+  const browsingScroll = useRef({ discover: 0, ask: 0 });
   useEffect(() => {
     const onHashChange = () => {
       const next = readRoute(window.location.hash);
-      if (currentRoute.current.page === 'discover') discoverScroll.current = window.scrollY;
+      const current = currentRoute.current.page;
+      if (current === 'discover' || current === 'ask') browsingScroll.current[current] = window.scrollY;
       currentRoute.current = next;
       if (next.page !== 'event') backHref.current = `#${next.page}`;
       setRoute(next);
@@ -37,7 +39,7 @@ export function App() {
   useEffect(() => {
     if (firstRender.current) { firstRender.current = false; return; }
     heading.current?.focus({ preventScroll: true });
-    window.scrollTo(0, route.page === 'discover' ? discoverScroll.current : 0);
+    window.scrollTo(0, route.page === 'discover' || route.page === 'ask' ? browsingScroll.current[route.page] : 0);
   }, [route]);
   const intro = introductions[route.page];
   return <>
@@ -49,7 +51,8 @@ export function App() {
       <h1 ref={heading} tabIndex={-1}>{intro.title}</h1><p className="intro">{intro.body}</p>
       {/* Preserve browsing state while viewing details or another destination. */}
       <div hidden={route.page !== 'discover'}><Discover revision={eventRevision} /></div>
-      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page === 'organizer' ? <Organizer onEventsChanged={eventsChanged} /> : route.page !== 'discover' ? <PlannedScreen page={route.page} /> : null}
+      <div hidden={route.page !== 'ask'}><Ask revision={eventRevision} /></div>
+      {route.page === 'event' ? <EventDetail id={route.id} backHref={backHref.current} /> : route.page === 'organizer' ? <Organizer onEventsChanged={eventsChanged} /> : route.page === 'saved' ? <PlannedScreen /> : null}
     </main>
     <footer>Made for Trojans. Source-linked details. Unknowns stay unknown.</footer>
   </>;

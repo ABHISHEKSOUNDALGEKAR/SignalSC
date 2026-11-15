@@ -114,14 +114,17 @@ At checklist creation, `client/src/main.tsx` contained a styled introductory she
 
 ## Step 4 — Ask
 
-- [ ] Build a large question input with useful starter prompts and a submit action. Respect the shared query length limit and reject blank input.
-- [ ] Send `{ query }` to `POST /api/search`.
-- [ ] Display the returned `answer`, `constraintSummary` chips, each result's event card and `reason`, and `excluded` reasons/counts.
-- [ ] When `noMatch` is true, clearly show the returned no-match answer without fabricated suggestions presented as matching events.
-- [ ] Keep returned result membership and match explanations grounded in the response. Do not generate additional client-side AI claims or silently relax the server's constraints.
-- [ ] Connect result cards to event details and saves, and support loading, error/retry, and repeated searches.
+- [x] Build a large question input with useful starter prompts and a submit action. Respect the shared query length limit and reject blank input.
+- [x] Send `{ query }` to `POST /api/search`.
+- [x] Display the returned `answer`, `constraintSummary` chips, each result's event card and `reason`, and `excluded` reasons/counts.
+- [x] When `noMatch` is true, clearly show the returned no-match answer without fabricated suggestions presented as matching events.
+- [x] Keep returned result membership and match explanations grounded in the response. Do not generate additional client-side AI claims or silently relax the server's constraints.
+- [x] Connect result cards to event details and support loading, error/retry, and repeated searches.
+- [ ] Connect Ask result Save/Unsave controls to the shared saved-event state when Step 5 is implemented.
 
 **Done when:** a natural-language question returns the API's grounded answer and results, while a strict no-match query gives an honest empty outcome with relevant exclusion notes.
+
+**Step 4 implementation and verification:** see the Step 4 run in `tests.md`. Ask uses the real search endpoint, preserves the question/results when returning from details, and clears old answers on a new request or an organizer event change. Controlled asynchronous tests verify stale-response protection. Local rules-mode API and browser checks passed for matches, unknown-value exclusions, no-match, error/retry, and the query limit. Save integration stays unchecked for Step 5. No Step 5 work started. Stopped here awaiting the user's instruction.
 
 ## Step 5 — Saved events
 

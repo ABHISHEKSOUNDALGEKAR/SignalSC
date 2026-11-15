@@ -135,6 +135,7 @@ Use current/frozen future dates for normal cases so events do not silently becom
 - [ ] Render `answer`, all constraint chips, result `reason`s, and exclusion reasons/counts accurately; open/save actions use the returned IDs.
 - [ ] `noMatch` displays the returned no-match answer without extra invented results or silently relaxed filters.
 - [ ] Success → no-match → failure → retry does not leave misleading old answers. Out-of-order searches cannot replace the latest response.
+- [ ] Returning from event detail preserves the submitted question and results. After an organizer publish/edit/cancel, clear the old answer and require a fresh submission rather than presenting stale matches as current.
 - [ ] Returned model/source text is displayed safely as text.
 
 ### Real API and regression checks
@@ -373,3 +374,33 @@ Completion gate: PASS or INCOMPLETE
 - Ask UI, saves, and PWA remain Steps 4–6. Successful publication is searchable through the existing backend API; the Ask screen is still explicitly pending.
 
 **Completion gate: PASS for Step 3 frontend and local manual-mode integration.** Automatic model extraction remains an environment-dependent validation limit. Stop here; do not begin Step 4 until instructed.
+
+### Step 4 — November 14, 2026
+
+**Scope / environment:** Ask screen, typed/starter queries, grounded answers/results, error/retry and latest-request handling, detail/back preservation, and invalidation after organizer changes. Branch `frontend-stuff`, uncommitted changes based on `646b0d7`. Node 22.17.1; real local memory API through Vite at `http://127.0.0.1:5174`; server search used its rules fallback with no model configured. Chrome on macOS, desktop and 320 × 725 responsive emulation. No server/shared/package changes, production writes, deployment, or new dependencies.
+
+**Automated verification — PASS:**
+
+- `node --import tsx --test client/tests/*.test.tsx`: **49 passed, 0 failed** (all 38 prior regressions plus 11 new search tests). Repeated after the final status-text/long-loading-message CSS changes.
+- `npm run typecheck`: passed. `npm run build`: passed, including typecheck; repeated at handoff.
+- `node --import tsx --test client/tests/search-live.test.ts`: real API integration passed. The test refuses non-memory/model-enabled backends, publishes four labeled synthetic records with distinct known/unknown cost/food/suitability, and creates private/cancelled controls. Broad search returned exactly the four published IDs. Individual strict filters excluded the correct unknown record; the combined strict query returned only the fully known eligible event and three exclusion notes. A strict late-night query returned `noMatch` and no results. Private/cancelled controls stayed out of all search responses.
+- `git diff --check`: passed at handoff.
+
+**Unit/render coverage:** blank/whitespace rejection and 500/501-character bounds; typed and all starter-prompt request bodies with same-origin credentials; no network request for invalid input; malformed/inconsistent/unpublished response rejection instead of silently modifying membership; success → no-match → failure → exact-query retry; old success arriving after a newer no-match despite ignored abort; cancelled/reset searches ignoring late errors; exact API answer/chips/reasons/exclusion counts and returned detail IDs; honest no-match rendering; escaping of question/model/source text; input labels and maximum length; and no invented initial results. Asynchronous races use controlled promises, not timing sleeps.
+
+**Browser cases — PASS:**
+
+1. Blank submission showed validation and focused the question input. A 500-character meaningful query reached the real API and produced an honest no-match response with the character count at 500/500. Over-limit rejection is covered at the input/validation boundary in unit/render tests.
+2. Queried `signaltestfour1794712206366 free events with food for beginners`. One matching synthetic event appeared with the API answer, date/free/food/beginner/topic chips, reason, and separate counts/reasons for unknown cost, unknown food, and unknown beginner suitability.
+3. Opened the returned card's exact event ID. Details showed the same event and source section; Tab/Enter on Back returned to Ask with the question and answer intact.
+4. Queried the same topic with `free events after 11 pm`. The returned no-match answer and four time exclusions appeared; previous cards were removed. No extra events or relaxed filters were added.
+5. Clicked the Free events this week starter prompt. It populated/submitted the question and displayed three matching published events before the cancellation regression below.
+6. Inspected the large input, prompts, result cards, long synthetic titles, and match reasons at 320px. Text/controls wrapped without visible horizontal page overflow. This was browser emulation, not a physical phone test.
+7. With a successful answer present, set DevTools Offline and submitted again. A connection error and Try again appeared; an accessibility snapshot confirmed the previous answer was absent. Restored No throttling and retried: the same Free events this week query returned three matches. Expected offline request errors appeared in the console; no app exception was observed during these checks.
+8. Signed into the local organizer UI and cancelled the disposable fully known matching event. Returning to Ask displayed “Event listings changed” with the question preserved and the old answer removed. Resubmitting returned two current free matches. Discover also refreshed; its Free filter showed two matching events. Signed out after testing.
+
+**Fixture/reproduction notes:** start the normal local memory API without a model key and run Vite on port 5174 before the explicit live-test command. The script creates a unique topic per run, reports it, and retains only labeled synthetic draft/event records in memory for browser verification. Do not run on real organizer data. The recorded topic's fully known record was intentionally cancelled during browser regression; rerun with a fresh topic for the initial one-match scenario. Memory fixtures disappear on backend restart. The standard `.test.tsx` suite requires no running server. Sandbox networking initially blocked the live command; rerunning outside the sandbox passed.
+
+**Remaining limits / dependencies:** Save/Unsave remains Step 5; cards currently link to details and do not claim working saves. Model-backed interpretation/answer quality was **NOT RUN** because no model was configured. The real rules-mode contract and safe display of synthetic model-shaped responses passed separately. Deployed-site, other browser engines, screen-reader, and physical-phone checks remain later-stage validation. Organizer review/publication helpers and Discover/detail regressions passed in the full automated suite; live publication/search and browser cancellation/public refresh also passed. No Step 5 feature work was performed.
+
+**Completion gate: PASS for Step 4; Save integration remains pending Step 5.** Stop here until instructed.
