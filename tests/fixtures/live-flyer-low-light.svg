@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800">
+  <rect width="1000" height="800" fill="#090b10"/>
+  <!-- Only the large heading is illuminated. Ground-truth fine print is
+       deliberately indistinguishable from the surrounding shadow. -->
+  <text x="500" y="190" text-anchor="middle" font-family="DejaVu Sans, sans-serif"
+        font-size="70" font-weight="bold" fill="#c8cbd3">Lantern Poetry Circle</text>
+  <g fill="#0a0c11" font-family="DejaVu Sans, sans-serif" text-anchor="middle">
+    <text x="500" y="360" font-size="40">November 23, 2026</text>
+    <text x="500" y="450" font-size="40">9:45 PM</text>
+    <text x="500" y="550" font-size="40">Doheny Library</text>
+  </g>
+</svg>

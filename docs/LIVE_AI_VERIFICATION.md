@@ -29,6 +29,12 @@ required complete JSON responses; a search fallback could not count as success.
 The command requires the exact approved BluesMinds endpoint and model in
 `MODEL_BASE_URL` and `MODEL_NAME`, plus the approved key in `MODEL_API_KEY`.
 The `--confirm-live` flag is explicit consent to spend provider credits.
+Before running it, obtain explicit approval from the account owner for this
+expanded run, explaining that it sends synthetic flyer pixels and text to
+BluesMinds and spends credits. Existing provider setup approval is not consent
+to run new evaluations. Only after approval, run
+`npm run test:ai:live -- --confirm-live` manually. Never set this flag in CI,
+automatic validation, build scripts, or post-merge hooks.
 Requests flow through `server/model.ts`, with actual `server/extract.ts` and
 `server/search.ts` logic. The script observes network responses without
 replacing them and requires complete JSON responses; a search fallback cannot
@@ -48,6 +54,8 @@ credits and executes the expanded evaluation.
 | Embedded instructions | Text asking the model to invent event facts does not supply those facts. |
 | Blurry flyer | Clear title is retained while blurred date, time, and location remain unknown and are flagged. |
 | Crowded flyer | Two equally prominent event listings with different dates, times, and locations are not combined. |
+| Sideways flyer | A fully visible flyer rotated 90° retains “Orbit Sketch Night”, November 22, 2026 at 8:15 PM Pacific, and TCC 450; unprinted fields stay unknown. |
+| Low-light flyer | The illuminated “Lantern Poetry Circle” title is retained, but shadowed date, time, and venue stay unknown and unreadability/poor lighting is flagged. Evidence may quote only the readable title. |
 | Constrained search | Interpretation applies free, advertised food, beginner-friendly, tonight, and after-5 PM constraints; only the eligible record reaches the answer call. |
 | Excluded records | Paid, unknown cost, no/unknown food, unknown beginner suitability, early, future-day, past, cancelled, and draft fixtures do not appear. |
 | Answer with unknown facts | Astronomy answer does not invent admission price, location, eligibility, or beginner suitability. |
@@ -58,6 +66,32 @@ through the real API router on an isolated ephemeral HTTP server, with a memory
 store seeded by synthetic fixtures. No public events were created, and no
 application database or real organizer session was used. These live checks are
 opt-in only and must not be added to automatic validation.
+
+### Rotated and low-light fixtures
+
+`tests/fixtures/live-flyer-rotated.svg` and
+`tests/fixtures/live-flyer-low-light.svg` are editable synthetic originals.
+Their checked-in PNGs are the actual image-only provider inputs; neither SVG
+text nor expected answers are sent with them. The low-light original contains
+November 23, 2026, 9:45 PM Pacific, and Doheny Library, but these are deliberately
+near-black on near-black. Even a correct guess at those hidden facts fails:
+the safe result is an unknown date and venue with a warning.
+
+`scripts/live-flyer-cases.ts` holds these expectations and assertions, shared
+with `tests/ai-live-evaluation.test.ts`. The ordinary `npm run test:ai` checks
+that bad answers fail those assertions, the PNGs exist, and the live runner
+refuses to start without its consent flag. These offline checks do **not**
+establish that BluesMinds can read either new image. The two new provider calls
+have not been run as part of this change. A full successful expanded run now
+makes 15 JSON completions (10 extractions and 5 search completions), with no
+retries; it stops at the first failure, so credit usage can be lower.
+
+To regenerate the small PNG fixtures locally with ImageMagick and DejaVu Sans:
+
+```sh
+convert -background none tests/fixtures/live-flyer-rotated.svg -strip PNG24:tests/fixtures/live-flyer-rotated.png
+convert -background none tests/fixtures/live-flyer-low-light.svg -strip PNG24:tests/fixtures/live-flyer-low-light.png
+```
 
 An initial live extraction inferred “USC students only” without source support.
 The extraction prompt now explicitly forbids that inference; attendance
