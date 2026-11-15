@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EventRecord, SearchResponse } from './api';
 import { api, ApiError } from './api';
 import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, locationLabel, money, unknown } from './common';
+import { FeedbackForm } from './feedback';
 import { campusRange as dateQuery } from './time';
 
 export function AskPage() {
@@ -141,6 +142,7 @@ export function EventDetailPage({ id }: { id: string }) {
       <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`} aria-describedby={event.endsAt ? undefined : 'calendar-note'}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
       {event.startsAt && !event.endsAt && <p className="calendar-note" id="calendar-note">End time isn’t listed, so your calendar entry is set to 1 hour.</p>}
     </section>
+    <FeedbackForm event={event} />
     {saveError && <div className="inline-message" role="alert">{saveError}</div>}
     {event.status === 'cancelled' && <div className="inline-message" role="alert"><strong>This event has been cancelled.</strong> Please check the source before making plans.</div>}
     <div className="detail-layout"><div>

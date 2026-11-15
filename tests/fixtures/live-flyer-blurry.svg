@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800">
   <defs>
-    <filter id="blur"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="blur"><feGaussianBlur stdDeviation="18"/></filter>
   </defs>
   <rect width="1000" height="800" fill="#f5ecd8"/>
   <text x="500" y="180" text-anchor="middle" font-family="DejaVu Sans, sans-serif"
         font-size="76" font-weight="bold" fill="#14324a">Night Market</text>
-  <g filter="url(#blur)" fill="#59636d" font-family="DejaVu Sans, sans-serif" text-anchor="middle">
+  <g filter="url(#blur)" fill="#8a9097" font-family="DejaVu Sans, sans-serif" text-anchor="middle">
     <text x="500" y="360" font-size="40">November 20, 2026 • 6:30 PM</text>
     <text x="500" y="460" font-size="40">Leavey Library</text>
   </g>

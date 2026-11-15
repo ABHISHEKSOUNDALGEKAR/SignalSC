@@ -26,3 +26,16 @@ answer is produced.
 **How to apply:** Require actual complete JSON responses and ensure search
 fallbacks do not count as successful live verification. Never log model
 reasoning, credential values, or raw provider error bodies.
+
+Treat degraded-image fixtures as visibility claims that require visual
+inspection, not as proof that any recovered fact was invented.
+
+**Why:** A deliberately blurred flyer was still readable to both a person and
+the provider. Rejecting its accurately recovered date did not establish a
+model safety failure; the fixture needed genuinely unreadable fine print.
+
+**How to apply:** Inspect actual raster inputs before changing extraction
+behavior for an apparent degraded-image failure. Keep safety expectations
+strict for information that the pixels really do not support. Slow live
+evaluation requests may need a longer test-only timeout; do not silently
+extend interactive application timeouts to make a provider check pass.

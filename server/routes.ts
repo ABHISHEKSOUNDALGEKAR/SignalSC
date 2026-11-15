@@ -1,11 +1,12 @@
 import express from 'express';
 import {
-  createDraftRequestSchema, loginRequestSchema, searchRequestSchema,
-  type DraftResponse, type DraftsResponse, type EventRecord, type EventResponse, type EventsResponse, type HealthResponse,
-  type OrganizerSession, type PublishErrorResponse,
+  createDraftRequestSchema, feedbackRequestSchema, loginRequestSchema, searchRequestSchema,
+  type DraftResponse, type DraftsResponse, type EventRecord, type EventResponse, type EventsResponse, type FeedbackEntry, type FeedbackResponse, type FeedbackSummaryAvailableResponse, type HealthResponse,
+  type FeedbackSummary, type OrganizerFeedbackResponse, type OrganizerSession, type PublishErrorResponse, type StoredFeedbackSummary,
 } from '../shared/api';
 import { clearSessionCookie, findOrganizationByCode, getSession, requireOrganizer, setSessionCookie } from './auth';
 import { extractDraft } from './extract';
+import { createFeedbackSummary } from './feedback';
 import { buildIcs } from './ics';
 import { modelConfigured, ModelUnavailableError } from './model';
 import { applyPatch, missingForPublish, newId, toDraftRecord, toEventRecord } from './records';
@@ -64,6 +65,32 @@ export function apiRouter(store: Store) {
     // Cancelled events stay readable so students who saved them can see the cancellation.
     if (!record || record.status === 'draft') return res.status(404).json({ error: 'Event not found.' });
     const body: EventResponse = { event: toEventRecord(record) };
+    res.json(body);
+  }));
+
+  api.post('/events/:id/feedback', rateLimit(10, 60_000), asyncRoute(async (req, res) => {
+    const parsed = feedbackRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Enter a rating and valid feedback.' });
+    const record = await store.get(String(req.params.id));
+    if (!record || record.status === 'draft') return res.status(404).json({ error: 'Event not found.' });
+    const startsAt = record.data.startsAt ? Date.parse(record.data.startsAt) : Number.NaN;
+    if (!Number.isFinite(startsAt) || startsAt > Date.now()) return res.status(409).json({ error: 'Feedback opens after the event starts.' });
+    const entry = {
+      id: newId(),
+      eventId: record.id,
+      ...parsed.data,
+      demo: false,
+      createdAt: now(),
+    };
+    if (!await store.addFeedback(entry)) return res.status(409).json({ error: 'Feedback has already been sent from this device.' });
+    const body: FeedbackResponse = { ok: true };
+    res.status(201).json(body);
+  }));
+
+  api.get('/events/:id/feedback/summary-available', asyncRoute(async (req, res) => {
+    const record = await store.get(String(req.params.id));
+    if (!record || record.status === 'draft') return res.status(404).json({ error: 'Event not found.' });
+    const body: FeedbackSummaryAvailableResponse = { count: (await store.listFeedback(record.id)).length };
     res.json(body);
   }));
 
@@ -200,6 +227,39 @@ export function apiRouter(store: Store) {
     const events = records.map(toEventRecord).sort((a, b) => Date.parse(b.startsAt ?? '') - Date.parse(a.startsAt ?? ''));
     const body: EventsResponse = { events, mode: 'live' };
     res.json(body);
+  }));
+
+  organizer.get('/events/:id/feedback', asyncRoute(async (req, res) => {
+    const record = await ownRecord(req, res, ['published', 'cancelled']);
+    if (!record) return;
+    const [entries, stored] = await Promise.all([
+      store.listFeedback(record.id),
+      store.getMeta(`feedback-summary:${record.id}`),
+    ]);
+    let summary: StoredFeedbackSummary | null = null;
+    if (stored) {
+      try { summary = JSON.parse(stored) as StoredFeedbackSummary; }
+      catch { summary = null; }
+    }
+    const responses: FeedbackEntry[] = entries.map(({ rating, wouldReturn, comment, createdAt, demo }) => ({ rating, wouldReturn, comment, createdAt, demo }));
+    const body: OrganizerFeedbackResponse = { responses, summary };
+    res.json(body);
+  }));
+
+  organizer.post('/events/:id/feedback/summary', asyncRoute(async (req, res) => {
+    const record = await ownRecord(req, res, ['published', 'cancelled']);
+    if (!record) return;
+    const entries = await store.listFeedback(record.id);
+    if (entries.length < 3) return res.status(422).json({ error: 'Add at least 3 responses before summarizing.', count: entries.length });
+    let summary: FeedbackSummary;
+    try { summary = await createFeedbackSummary(entries); }
+    catch (error) {
+      if (!(error instanceof ModelUnavailableError)) throw error;
+      return res.status(503).json({ error: 'Feedback summary is temporarily unavailable. Any previous summary is unchanged.' });
+    }
+    const result: StoredFeedbackSummary = { summary, generatedAt: now(), responseCount: entries.length };
+    await store.setMeta(`feedback-summary:${record.id}`, JSON.stringify(result));
+    res.json(result);
   }));
 
   organizer.patch('/events/:id', asyncRoute(async (req, res) => {

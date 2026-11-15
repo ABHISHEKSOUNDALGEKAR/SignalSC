@@ -48,3 +48,8 @@ timeoutMs = 180000
 [userenv.shared]
 MODEL_BASE_URL = "https://api.bluesminds.com/v1"
 MODEL_NAME = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["npm", "start"]
+build = ["npm", "run", "build"]
