@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import type { EventRecord } from './api';
 
-export function dateLabel(value: string | null): string {
-  if (!value) return 'Unknown';
+export function dateLabel(value: string | null, missing = 'Not listed'): string {
+  if (!value) return missing;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Unknown';
+  if (Number.isNaN(date.getTime())) return missing;
   return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles', timeZoneName: 'short' }).format(date);
 }
 export function dayLabel(value: string | null): string {
@@ -12,11 +12,16 @@ export function dayLabel(value: string | null): string {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Los_Angeles' }).format(new Date(value));
 }
 export function money(cents: number | null): string {
-  if (cents === null) return 'Unknown';
+  // Null means the cost is unknown. Only an explicit 0 is free.
+  if (cents === null) return 'Cost not listed';
   return cents === 0 ? 'Free' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 export function unknown(value: string | null | undefined): string {
-  return value?.trim() || 'Unknown';
+  return value?.trim() || 'Not listed';
+}
+// The public EngageSC feed hides the location behind USC sign-in, so point there instead of guessing.
+export function locationLabel(event: Pick<EventRecord, 'location' | 'sourceKind'>): string {
+  return event.location?.trim() || (event.sourceKind === 'engagesc' ? 'Location on EngageSC' : 'Location not listed');
 }
 export function ErrorNotice({ error, retry }: { error: string; retry?: () => void }) {
   return <div className="error-box" role="alert"><strong>We couldn’t load that just now.</strong><p>{error}</p>{retry && <button className="btn btn-outline" onClick={retry}>Try again</button>}</div>;
@@ -29,7 +34,7 @@ export function EmptyState({ title, children, action }: { title: string; childre
 }
 export function EventCard({ event, href, reason }: { event: EventRecord; href: string; reason?: string }) {
   return <a className="event-card" href={href}>
-    <div className="event-card-top"><div><h3 className="event-title">{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt)}<br />{unknown(event.location)} · {money(event.costCents)}</div></div>
+    <div className="event-card-top"><div><h3 className="event-title">{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt, 'Time not listed')}<br />{locationLabel(event)} · {money(event.costCents)}</div></div>
       <span className={`badge ${event.status === 'cancelled' ? 'cancelled' : ''}`}>{event.status === 'cancelled' ? 'Cancelled' : event.food === 'advertised' ? 'Food advertised' : 'Campus event'}</span>
     </div>
     {reason && <div className="event-reason"><strong>Why it fits</strong> · {reason}</div>}

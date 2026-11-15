@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EventRecord, SearchResponse } from './api';
 import { api, ApiError } from './api';
-import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, money, unknown } from './common';
+import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, locationLabel, money, unknown } from './common';
 import { campusRange as dateQuery } from './time';
 
 export function AskPage() {
@@ -101,7 +101,7 @@ export function EventDetailPage({ id }: { id: string }) {
   useEffect(() => { reload(); const ids = readSaved(); setSaved(ids?.includes(id) ?? false); }, [id]);
   if (loading) return <main className="page"><LoadingList count={2} /></main>;
   if (!event) return <main className="page"><a className="nav-link" href="#/discover">← Discover</a><ErrorNotice error={error || 'This event is no longer available.'} retry={reload} /></main>;
-  const foodText = event.food === 'advertised' ? 'Advertised' : event.food === 'not-advertised' ? 'Not advertised' : 'Unknown';
+  const foodText = event.food === 'advertised' ? 'Advertised' : event.food === 'not-advertised' ? 'Not advertised' : 'Not listed';
   function toggleSaved() {
     const ids = readSaved();
     if (!ids) {
@@ -115,30 +115,30 @@ export function EventDetailPage({ id }: { id: string }) {
   }
   return <main className="page">
     <a href="#/discover" className="nav-link" style={{ paddingLeft: 0 }}>← Back to Discover</a>
-    <section className="detail-hero"><div className="eyebrow">{unknown(event.organizationName)} · {event.status === 'cancelled' ? 'Notice' : 'Event details'}</div><h1>{event.title}</h1><div className="detail-meta">{dateLabel(event.startsAt)}{event.endsAt ? ` — ${dateLabel(event.endsAt)}` : ''}<br />{unknown(event.location)}</div>
-      <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}</div>
+    <section className="detail-hero"><div className="eyebrow">{event.organizationName?.trim() || 'Organizer not listed'} · {event.status === 'cancelled' ? 'Notice' : 'Event details'}</div><h1>{event.title}</h1><div className="detail-meta">{dateLabel(event.startsAt, 'Time not listed')}{event.endsAt ? ` — ${dateLabel(event.endsAt)}` : ''}<br />{locationLabel(event)} · {money(event.costCents)}</div>
+      <div className="detail-actions"><button className="btn btn-gold saved-label" aria-pressed={saved} onClick={toggleSaved}>{saved ? 'Saved' : 'Save event'}</button>{event.startsAt && <a className="btn btn-outline" href={`/api/events/${encodeURIComponent(event.id)}/calendar.ics`}>Add to calendar</a>}{event.registrationUrl && <a className="btn btn-outline" href={event.registrationUrl} target="_blank" rel="noreferrer">Register ↗</a>}{event.sourceUrl && <a className="btn btn-outline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceKind === 'engagesc' ? 'View on EngageSC ↗' : 'View original source ↗'}</a>}</div>
     </section>
     {saveError && <div className="inline-message" role="alert">{saveError}</div>}
     {event.status === 'cancelled' && <div className="inline-message" role="alert"><strong>This event has been cancelled.</strong> Please check the source before making plans.</div>}
     <div className="detail-layout"><div>
-      <section className="detail-section"><h2>What to know</h2><p className="description">{unknown(event.description)}</p></section>
+      <section className="detail-section"><h2>What to know</h2>{event.description.trim() ? <p className="description">{event.description}</p> : <p className="description unknown">No description listed.</p>}</section>
       <section className="detail-section"><h2>The details</h2><div className="field-grid">
-        <Field label="Starts">{dateLabel(event.startsAt)}</Field><Field label="Ends">{dateLabel(event.endsAt)}</Field><Field label="Location">{unknown(event.location)}</Field><Field label="Cost">{money(event.costCents)}</Field>
-        <Field label="Food">{foodText}</Field><Field label="Who can attend">{unknown(event.eligibility)}</Field><Field label="Beginner friendly">{event.beginnerFriendly === null ? 'Unknown' : event.beginnerFriendly ? 'Yes' : 'No'}</Field>
-        <Field label="Registration link">{event.registrationUrl ? <a className="source-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Open registration ↗</a> : 'Unknown'}</Field>
-        <Field label="Registration deadline">{dateLabel(event.registrationDeadline)}</Field><Field label="Timezone">{unknown(event.timezone)}</Field><Field label="Source type">{event.sourceKind === 'engagesc' ? 'EngageSC calendar' : event.sourceKind === 'usc-calendar' ? 'USC calendar' : 'Flyer'}</Field>
+        <Field label="Starts" missing={!event.startsAt}>{dateLabel(event.startsAt)}</Field><Field label="Ends" missing={!event.endsAt}>{dateLabel(event.endsAt)}</Field><Field label="Location" missing={!event.location?.trim()}>{locationLabel(event)}</Field><Field label="Cost" missing={event.costCents === null}>{money(event.costCents)}</Field>
+        <Field label="Food" missing={event.food === 'unknown'}>{foodText}</Field><Field label="Who can attend" missing={!event.eligibility?.trim()}>{unknown(event.eligibility)}</Field><Field label="Beginner friendly" missing={event.beginnerFriendly === null}>{event.beginnerFriendly === null ? 'Not listed' : event.beginnerFriendly ? 'Yes' : 'No'}</Field>
+        <Field label="Registration link" missing={!event.registrationUrl}>{event.registrationUrl ? <a className="source-link" href={event.registrationUrl} target="_blank" rel="noreferrer">Open registration ↗</a> : 'Not listed'}</Field>
+        <Field label="Registration deadline" missing={!event.registrationDeadline}>{dateLabel(event.registrationDeadline)}</Field><Field label="Timezone">{event.timezone}</Field><Field label="Source type">{event.sourceKind === 'engagesc' ? 'EngageSC calendar' : event.sourceKind === 'usc-calendar' ? 'USC calendar' : 'Flyer'}</Field>
       </div></section>
       <section className="detail-section"><h2>Confirmation</h2><Confirmation event={event} /><p className="event-meta" style={{ marginTop: 12 }}>Updated {dateLabel(event.updatedAt)} · Published {dateLabel(event.publishedAt)}</p></section>
       {event.evidence.length > 0 && <section className="detail-section"><h2>Evidence from the source</h2>{event.evidence.map((entry, i) => <div className="evidence" key={`${entry.field}-${i}`}><b>{entry.field}</b>“{entry.excerpt}”</div>)}</section>}
       {event.uncertainties.length > 0 && <section className="detail-section"><h2>Still to confirm</h2>{event.uncertainties.map((item, i) => <p className="event-meta" key={`${item}-${i}`}>• {item}</p>)}</section>}
     </div><aside className="detail-aside">
-      <div className="registration-card"><h3>Go to the source.</h3><p className="event-meta">Check the original announcement for the latest details.</p>{event.sourceUrl ? <a className="source-link" href={event.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a> : <span className="unknown">Source link unknown</span>}</div>
-      <div className="source-card"><h3>Flyer</h3>{event.flyerUrl ? <img className="flyer" src={event.flyerUrl} alt={`Original flyer for ${event.title}`} /> : <p className="event-meta">Unknown. No original image attached.</p>}</div>
+      <div className="registration-card"><h3>Go to the source.</h3><p className="event-meta">Check the original announcement for the latest details.</p>{event.sourceUrl ? <a className="source-link" href={event.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a> : <span className="unknown">Source link not listed</span>}</div>
+      <div className="source-card"><h3>Flyer</h3>{event.flyerUrl ? <img className="flyer" src={event.flyerUrl} alt={`Original flyer for ${event.title}`} /> : <p className="event-meta unknown">No original image attached.</p>}</div>
     </aside></div>
   </main>;
 }
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <div><span className="field-label">{label}</span><div className={children === 'Unknown' ? 'field-value unknown' : 'field-value'}>{children}</div></div>;
+function Field({ label, children, missing = false }: { label: string; children: ReactNode; missing?: boolean }) {
+  return <div><span className="field-label">{label}</span><div className={missing ? 'field-value unknown' : 'field-value'}>{children}</div></div>;
 }
 function readSaved(): string[] | null {
   try {
