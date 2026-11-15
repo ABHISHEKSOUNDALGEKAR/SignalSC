@@ -17,7 +17,7 @@
 
 - The existing `DATABASE_URL` is used by the project's PostgreSQL store. Tables are created automatically at startup. Without a database, development uses temporary in-memory storage; production requires PostgreSQL.
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
-- Development organizer access defaults to the demo codes documented in `.env.example`. Configure private `ORGANIZER_ACCESS_CODES` before real use; production has no demo-code fallback.
+- Private `ORGANIZER_ACCESS_CODES` are supplied through Replit Secrets. There are no demo defaults: development sign-in is disabled when unset, and production refuses to start without codes, `SESSION_SECRET`, or `DATABASE_URL`. Codes and organization identifiers must be unique; keep organization names stable because they determine event ownership.
 - AI extraction and natural-language search require `MODEL_API_KEY`, or the existing supported `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL`. Optional model settings are documented in `.env.example`. No AI credentials were invented or added during import setup.
 - The user approved BluesMinds as the AI provider. Match its key to `MODEL_BASE_URL=https://api.bluesminds.com/v1` and the verified `MODEL_NAME=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning`; the adapter uses this model's documented non-reasoning mode. Keep credentials in Secrets.
 - `npm run test:ai:live -- --confirm-live` spends real provider credits on isolated synthetic fixtures. Do not add it to automatic validation; the ordinary `test:ai` suite uses simulated responses.

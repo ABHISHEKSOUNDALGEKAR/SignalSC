@@ -8,7 +8,9 @@ process.env.MODEL_BASE_URL = 'https://model.test/v1';
 process.env.MODEL_NAME = 'gpt-4o-mini';
 process.env.NODE_ENV = 'development';
 delete process.env.DATABASE_URL;
-delete process.env.ORGANIZER_ACCESS_CODES;
+process.env.ORGANIZER_ACCESS_CODES = 'AI Test Org=ai-isolated-test-code';
+process.env.SESSION_SECRET = 'ai-isolated-session-secret';
+delete process.env.REPLIT_DEPLOYMENT;
 const { completeJson, ModelUnavailableError, modelConfigured } = await import('../server/model');
 const { extractDraft, emptyDraft } = await import('../server/extract');
 const { search } = await import('../server/search');
@@ -238,7 +240,7 @@ test('organizer extraction endpoint returns 503 without saving a draft on provid
   const base = `http://127.0.0.1:${address.port}/api`;
   try {
     const login = await originalFetch(`${base}/organizer/session`, {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accessCode:'demo-a'}),
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accessCode:'ai-isolated-test-code'}),
     });
     assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie')!.split(';')[0];
