@@ -73,7 +73,7 @@ test('the review pass clears unsupported values, rewrites the description and ad
   assert.equal(draft.food, 'advertised');
   assert.match(draft.description, /Light food samples are included/);
   assert.ok(draft.uncertainties.includes('Confirm the admission cost'));
-  assert.ok(draft.uncertainties.some(n => /location was left blank/.test(n)));
+  assert.ok(draft.uncertainties.some(n => /location was left blank/i.test(n)));
   assert.deepEqual(suggestions, ['Say whether admission is free', 'Add the full street address']);
 });
 
@@ -92,4 +92,33 @@ test('organizer notes never show internal field names or null', () => {
     'The registration deadline date and time are not stated on the flyer.');
   assert.equal(plainNote('endTime is null'), 'end time not stated');
   assert.equal(plainNote('isFree was set per instructions'), 'admission cost was set');
+});
+
+test('review notes skip blank fields, accept 12-hour times, and stay short and non-repeating', async () => {
+  const sparse = {
+    ...mixer, endTime: null, eligibility: null, isFree: null, food: 'unknown', location: 'Downtown Los Angeles',
+    startTime: '18:30', registrationUrl: 'https://example.com/mixer',
+    evidence: [{ field: 'startTime', excerpt: '6:30 PM' }, { field: 'location', excerpt: 'Downtown Los Angeles' }],
+    uncertainties: [],
+  };
+  provider(sparse, {
+    fieldChecks: [
+      { field: 'startTime', supported: false, note: 'Source states 6:30 PM, not 18:30' },
+      { field: 'endTime', supported: false, note: 'Source does not state an end time' },
+      { field: 'eligibility', supported: false, note: 'Source does not state who can attend' },
+      { field: 'location', supported: true, note: null },
+    ],
+    description: 'An alumni mixer in Downtown Los Angeles. No host beer and wine will be provided.',
+    itemsToConfirm: ['Confirm the end time', 'Confirm the exact location details', 'Confirm if there is a cost to attend',
+      'Confirm if food will be provided', 'Confirm who is eligible to attend', 'Confirm the registration deadline'],
+    suggestions: [],
+  });
+  const { draft } = await extractDraft({ imageBase64: 'aW1n', mimeType: 'image/png' }, now);
+  assert.equal(draft.startsAt, '2026-12-04T18:30:00-08:00');
+  assert.ok(!draft.uncertainties.some(n => /start time/i.test(n)), 'a matching 12-hour time is not flagged');
+  assert.ok(!draft.uncertainties.some(n => /left blank/i.test(n)), 'fields that were never filled are not reported as cleared');
+  assert.ok(draft.uncertainties.length <= 5);
+  assert.equal(draft.uncertainties.filter(n => /end time/i.test(n)).length, 1);
+  assert.match(draft.description, /There is a no-host bar, so guests buy their own drinks\./);
+  assert.doesNotMatch(draft.description, /will be provided/);
 });
