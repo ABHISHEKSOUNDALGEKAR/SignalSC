@@ -24,6 +24,24 @@ The production server serves the built frontend and API on `PORT` (default 3001)
 
 ## Current status
 
+### AI configuration and checks
+
+Set `MODEL_API_KEY` securely for your own OpenAI account; the default model is
+`gpt-4o-mini`. Existing `AI_INTEGRATIONS_OPENAI_*` configurations and custom
+OpenAI-compatible endpoints remain supported (see `.env.example`).
+`/api/health` reports whether a key is configured, not whether the account has
+credits or the provider is reachable.
+
+Run `npm run test:ai` for isolated, simulated-provider tests covering text/image
+requests, extracted unknown fields, constrained search, unavailable-provider
+errors, and unconfigured fallbacks. These tests make no external API calls.
+Successful live extraction and model-interpreted search must also be checked
+with an active, funded provider account.
+
+Without a key, extraction returns a manual draft. Provider failures return 503
+for extraction and leave no draft behind. Search falls back to deterministic
+rules when its model request fails. Provider response bodies are not logged.
+
 **Server (`server/`)**: implemented. Organizer access-code sign-in, flyer/announcement extraction into private drafts, review and publish, edit and cancel with ownership checks, constrained natural-language search, `.ics` export, and an importer for public calendar feeds. It has been exercised locally in memory mode with a stand-in model. Postgres and a model key are supplied through environment variables (see `.env.example`). See `docs/SERVER.md`.
 
 **Client (`client/`)**: in progress. The shell exists; the screens in `docs/WORK_SPLIT.md` (Ask, Discover, event detail, Saved, Organizer) are being built against the contract in `shared/api.ts`.
