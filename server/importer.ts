@@ -109,7 +109,7 @@ export async function importFeed(store: Store, url: string, now = new Date()): P
   // Retain the archive without spending credits to eagerly enrich past events.
   // Both AI enrichment and public-detail prefetch target upcoming listings.
   await enrichImportedEvents(store, mappedEvents.filter(({ draft }) =>
-    Date.parse(draft.endsAt ?? draft.startsAt ?? '') >= now.getTime()), now);
+    Date.parse(draft.endsAt ?? draft.startsAt ?? '') >= now.getTime()), now, sourceKind);
   for (const mapped of mappedEvents) {
     const record: StoredEvent = {
       id: newId(), status: 'published', organizationId: null, organizationName: mapped.organizationName, data: mapped.draft,
@@ -142,8 +142,9 @@ export function scheduleFeedImport(store: Store, url: string) {
         await store.setMeta(META_KEY, new Date(0).toISOString()); // retry on the next cycle
         throw error;
       }
-    } catch (error) {
-      console.warn('Feed import failed:', error instanceof Error ? error.message : error);
+    } catch {
+      // Fetch/driver error messages may contain credential-bearing source URLs.
+      console.warn('Feed import failed; the next scheduled cycle will try again.');
     }
   };
   void run();

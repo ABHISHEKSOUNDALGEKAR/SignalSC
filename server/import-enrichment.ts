@@ -4,6 +4,8 @@ import type { EventDraft } from '../shared/events';
 import { completeJson, modelConfigured, ModelLimitError } from './model';
 import type { Store } from './store';
 import { claimImportCache, type CacheClaim } from './import-cache';
+import { importHealthRecorder } from './import-health';
+import type { ImportHealthOutcome, ImportHealthRun } from '../shared/api';
 
 // Bump when the prompt or grounding rules change. Successful unknown results are
 // cached too; absence of a fact is not a reason to pay for the same source again.
@@ -137,15 +139,19 @@ function apply(draft: EventDraft, details: Details) {
 // Serialize within a store to coalesce overlapping refreshes before their cache
 // reads. The shared model gate still controls calls from every other consumer.
 const queues = new WeakMap<Store, Promise<void>>();
-export async function enrichImportedEvents(store: Store, inputs: Input[], now = new Date()): Promise<void> {
+export async function enrichImportedEvents(store: Store, inputs: Input[], now = new Date(), source: ImportHealthRun['source'] = 'engagesc'): Promise<void> {
   const previous = queues.get(store) ?? Promise.resolve();
-  const pending = previous.catch(() => {}).then(() => enrich(store, inputs, now));
+  const pending = previous.catch(() => {}).then(async () => {
+    const health = importHealthRecorder(store, source, now);
+    try { await enrich(store, inputs, now, health); }
+    finally { await health.save(); }
+  });
   queues.set(store, pending);
   try { await pending; }
   finally { if (queues.get(store) === pending) queues.delete(store); }
 }
 
-async function enrich(store: Store, inputs: Input[], now: Date) {
+async function enrich(store: Store, inputs: Input[], now: Date, health: ReturnType<typeof importHealthRecorder>) {
   const grouped = new Map<string, { source: string; drafts: EventDraft[] }>();
   for (const { draft, sourceText } of inputs) {
     const source = sourceText ?? `${draft.title}\n${draft.description}`;
@@ -155,6 +161,7 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
     apply(draft, baseline);
     // Do not truncate away a contradiction to fit a model context window.
     if (source.length > 12_000) {
+      health.add('oversized', 1);
       apply(draft, unknown());
       draft.uncertainties.push('Source description is too long to enrich reliably; additional details left unknown.');
       continue;
@@ -165,8 +172,17 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
     if (group) group.drafts.push(draft);
     else grouped.set(key, { source, drafts: [draft] });
   }
-  if (!modelConfigured) return;
+  if (!modelConfigured) {
+    health.add('not_configured', [...grouped.values()].reduce((n, g) => n + g.drafts.length, 0), 0);
+    return;
+  }
   const waiting = [...grouped].map(([key, group]) => ({ key, ...group }));
+  const recorded = new Set<string>();
+  const record = (item: typeof waiting[number], outcome: ImportHealthOutcome, retryAt: number | null = null) => {
+    if (recorded.has(item.key)) return;
+    recorded.add(item.key);
+    health.add(outcome, item.drafts.length, retryAt);
+  };
   for (let offset = 0; offset < waiting.length; offset += IMPORT_BATCH_SIZE) {
     const batch: (typeof waiting[number] & { claim: Extract<CacheClaim, { kind: 'owned' }> })[] = [];
     try {
@@ -175,10 +191,16 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
         if (claim.kind === 'cached') {
           const details = groundImportedDetails(claim.details, item.source);
           item.drafts.forEach(d => apply(d, details));
+          const isUnknown = details.food === 'unknown' && details.beginnerFriendly === null &&
+            !details.topics.length && details.costCents === null && details.eligibility === null && details.registrationUrl === null;
+          record(item, isUnknown ? 'cached_unknown' : 'cached');
+          health.success(claim.successAt);
         } else if (claim.kind === 'owned') batch.push({ ...item, claim });
+        else record(item, claim.reason, claim.retryAt);
       }
     } catch {
       await Promise.allSettled(batch.map(item => item.claim.cancel()));
+      waiting.filter(item => !recorded.has(item.key)).forEach(item => record(item, 'coordination_failure', 0));
       console.warn('Imported event enrichment coordination unavailable; retaining source-only details.');
       break;
     }
@@ -196,8 +218,12 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
         }
       });
     } catch (error) {
+      const attempted = new Set(batch.filter(item => item.claim.retryAt !== null).map(item => item.key));
       await Promise.allSettled(batch.map(item => error instanceof ModelLimitError
         ? item.claim.cancel() : item.claim.finish()));
+      batch.forEach(item => record(item, error instanceof ModelLimitError
+        ? (item.claim.retryAt === null ? 'capacity' : 'cooldown')
+        : (attempted.has(item.key) ? 'provider_failure' : 'coordination_failure'), item.claim.retryAt ?? 0));
       // No raw error or source content in logs. A failed batch must not drain
       // the remaining budget by sending every other batch to an unavailable API.
       console.warn('Imported event enrichment unavailable; retaining source-only details.');
@@ -206,20 +232,28 @@ async function enrich(store: Store, inputs: Input[], now: Date) {
     const envelope = z.object({ events: z.array(z.object({ id: z.number().int().nonnegative() }).passthrough()).max(IMPORT_BATCH_SIZE) }).safeParse(raw);
     if (!envelope.success) {
       await Promise.allSettled(batch.map(item => item.claim.finish()));
+      batch.forEach(item => record(item, 'invalid_response', item.claim.retryAt));
       break;
     }
     for (const [id, item] of batch.entries()) {
       const matches = envelope.data.events.filter(e => e.id === id);
       if (matches.length !== 1 || !detailsSchema.safeParse(matches[0]).success) {
         await item.claim.finish().catch(() => false);
+        record(item, 'invalid_response', item.claim.retryAt);
         continue;
       }
       const details = groundImportedDetails(matches[0], item.source);
       try {
-        if (await item.claim.finish(details)) item.drafts.forEach(d => apply(d, details));
+        if (await item.claim.finish(details)) {
+          item.drafts.forEach(d => apply(d, details));
+          record(item, 'recovered');
+          health.success(now.getTime());
+        } else record(item, 'coordination_failure', item.claim.retryAt);
       } catch {
+        record(item, 'coordination_failure', item.claim.retryAt);
         console.warn('Imported event enrichment cache unavailable; retaining source-only details.');
       }
     }
   }
+  waiting.filter(item => !recorded.has(item.key)).forEach(item => record(item, 'deferred', 0));
 }

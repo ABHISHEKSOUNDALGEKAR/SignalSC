@@ -51,6 +51,13 @@ test('organizer publishing and device-local saved-event flows work in a browser'
   const { createStore } = await import('../server/store');
   const store = createStore();
   await store.init();
+  const { importHealthRecorder } = await import('../server/import-health');
+  const health = importHealthRecorder(store, 'engagesc', new Date('2035-01-01T00:00:00Z'));
+  health.add('cached_unknown', 2);
+  health.add('provider_failure', 3, Date.parse('2035-01-02T00:00:00Z'));
+  health.add('capacity', 1, 0);
+  health.success(Date.parse('2034-12-31T00:00:00Z'));
+  await health.save();
 
   const app = express();
   app.use(express.json({ limit: '8mb' }));
@@ -95,6 +102,7 @@ test('organizer publishing and device-local saved-event flows work in a browser'
 
     await page.goto(`${webUrl}/#/organizer`);
     await page.getByRole('heading', { name: 'Organizer sign in' }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Calendar detail recovery' }).count(), 0);
 
     await page.getByLabel('Organization access code').fill('not-the-code');
     await page.getByRole('button', { name: 'Continue' }).click();
@@ -105,6 +113,19 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     await page.getByLabel('Organization access code').fill('browser-test-code');
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
+    await page.getByRole('heading', { name: 'Calendar detail recovery' }).waitFor();
+    await page.getByText('Reused successful unknowns: 2', { exact: true }).waitFor();
+    await page.getByText('Provider request failed: 3', { exact: true }).waitFor();
+    await page.getByText('Rejected by usage or concurrency limits: 1', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).waitFor();
+    await store.setMeta('import-health:v1:engagesc', 'invalid');
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await page.getByText('Import health is temporarily unavailable.', { exact: true }).waitFor();
+    // Restore a real persisted summary; refreshing status must recover the panel.
+    await health.save();
+    await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+    await page.getByText('Reused successful unknowns: 2', { exact: true }).waitFor();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByLabel('Or paste announcement text').fill('Unsaved announcement input.');

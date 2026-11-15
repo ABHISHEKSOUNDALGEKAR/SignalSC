@@ -190,7 +190,12 @@ test('cache lease expiry recovers pre-send crashes and fences stale completion a
   assert.equal(await old.finish({ stale: true }), false);
   assert.equal(await replacement.beforeAttempt(), true);
   assert.equal(await replacement.finish({ food: 'unknown' }), true);
-  assert.deepEqual(await claimImportCache(first, 'lease'), { kind: 'cached', details: { food: 'unknown' } });
+  const cached = await claimImportCache(first, 'lease');
+  assert.equal(cached.kind, 'cached');
+  if (cached.kind === 'cached') {
+    assert.deepEqual(cached.details, { food: 'unknown' });
+    assert.equal(typeof cached.successAt, 'number');
+  }
 });
 
 test('attempted imports retain cooldown after lease expiry, while capacity rejections release the claim', pgTest, async () => {

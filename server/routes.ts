@@ -13,6 +13,7 @@ import { modelConfigured, ModelUnavailableError } from './model';
 import { applyPatch, missingForPublish, newId, toDraftRecord, toEventRecord } from './records';
 import { inWindow, search } from './search';
 import type { Store, StoredEvent } from './store';
+import { readImportHealth } from './import-health';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const now = () => new Date().toISOString();
@@ -154,6 +155,11 @@ export function apiRouter(store: Store) {
 
   const organizer = express.Router();
   organizer.use(requireOrganizer);
+  organizer.get('/import-health', asyncRoute(async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try { res.json(await readImportHealth(store)); }
+    catch { res.status(503).json({ error: 'Import health is temporarily unavailable.' }); }
+  }));
   const session = (res: express.Response) => res.locals.organizer as OrganizerSession;
 
   async function ownRecord(req: express.Request, res: express.Response, statuses: StoredEvent['status'][]) {

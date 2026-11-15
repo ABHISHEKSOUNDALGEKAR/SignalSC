@@ -20,6 +20,8 @@ const { MemoryStore, PostgresStore } = await import('../server/store');
 const { emptyDraft } = await import('../server/extract');
 const { parseIcs } = await import('../server/ics');
 const { campusTimeToDate } = await import('../server/time');
+const { readImportHealth } = await import('../server/import-health');
+const { claimImportCache, IMPORT_LEASE_MS } = await import('../server/import-cache');
 const originalFetch = globalThis.fetch;
 const now = new Date('2035-01-01T00:00:00Z');
 const feedUrl = 'https://feed.test/public.ics';
@@ -195,7 +197,14 @@ test('provider errors and invalid JSON spend attempts but use a persistent retry
   const store = new MemoryStore();
   const input = () => ({ draft: { ...emptyDraft(null), title: 'private-source', description: source } });
   await enrichImportedEvents(store, [input()], now);
+  let health = await readImportHealth(store, now.getTime());
+  assert.equal(health.runs[0].outcomes[0].outcome, 'provider_failure');
+  assert.equal(health.runs[0].outcomes[0].retryEligible, 0);
+  assert.equal(health.runs[0].outcomes[0].nextRetryAt, new Date(now.getTime() + 86_400_000).toISOString());
   await enrichImportedEvents(Object.create(store), [input()], new Date(now.getTime() + 3_600_000));
+  health = await readImportHealth(store, now.getTime() + 3_600_000);
+  assert.equal(health.runs[0].outcomes[0].outcome, 'cooldown');
+  assert.equal((await readImportHealth(store, now.getTime() + 86_400_000)).runs[0].outcomes[0].retryEligible, 1);
   assert.equal(calls, 1);
   await enrichImportedEvents(store, [input()], new Date(now.getTime() + 86_400_000));
   assert.equal(calls, 2);
@@ -219,6 +228,10 @@ test('shared budget exhaustion never prevents source records importing and retri
   const store = new MemoryStore();
   assert.equal((await importFeed(store, feedUrl, now)).inserted, 1);
   assert.equal(calls, 3);
+  const health = await readImportHealth(store, now.getTime());
+  assert.equal(health.runs[0].outcomes[0].outcome, 'capacity');
+  assert.equal(health.runs[0].outcomes[0].retryEligible, 1);
+  assert.equal(health.runs[0].lastSuccessAt, null);
   clock += 1000;
   await importFeed(store, feedUrl, now);
   assert.equal(calls, 4);
@@ -231,11 +244,66 @@ test('oversized source is never partially extracted and past/cancelled events ne
   await enrichImportedEvents(store, [input], now);
   assert.equal(input.draft.costCents, null);
   assert.match(input.draft.uncertainties.join(' '), /too long/);
+  assert.deepEqual((await readImportHealth(store, now.getTime())).runs[0].outcomes, [
+    { outcome: 'oversized', count: 1, retryEligible: 0, nextRetryAt: null },
+  ]);
   globalThis.fetch = async url => {
     assert.equal(url, feedUrl);
     return new Response(feed(['A gathering.']).replace('END:VEVENT', 'STATUS:CANCELLED\r\nEND:VEVENT'));
   };
   assert.equal((await importFeed(store, feedUrl, now)).skipped, 1);
+});
+
+test('health distinguishes successful cached unknowns, leases, and coordination failure without exposing sources', async () => {
+  const { createHash } = await import('node:crypto');
+  const store = new MemoryStore();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return reply({ events: [{ id: 0, ...empty() }] }); };
+  const input = () => ({ draft: { ...emptyDraft(null), title: 'private-source-title', description: 'private-source-body' } });
+  await enrichImportedEvents(store, [input(), input()], now);
+  let health = await readImportHealth(store, now.getTime());
+  assert.equal(health.runs[0].outcomes[0].outcome, 'recovered');
+  assert.equal(health.runs[0].lastSuccessAt, now.toISOString());
+  await enrichImportedEvents(Object.create(store), [input(), input()], new Date(now.getTime() + 1000));
+  health = await readImportHealth(store, now.getTime() + 1000);
+  assert.deepEqual(health.runs[0].outcomes, [{ outcome: 'cached_unknown', count: 2, retryEligible: 0, nextRetryAt: null }]);
+  assert.equal(health.runs[0].lastSuccessAt, now.toISOString());
+  assert.equal(calls, 1, 'status reads and cached unknowns never call the provider');
+  assert.doesNotMatch(JSON.stringify(health), /private-source|import-details|synthetic-import-test|model.test/);
+
+  const busy = new MemoryStore();
+  const hash = createHash('sha256').update('private-source-title\nprivate-source-body').digest('hex');
+  await claimImportCache(busy, `import-details:v1:${hash}`, now.getTime());
+  await enrichImportedEvents(busy, [input()], now);
+  health = await readImportHealth(busy, now.getTime());
+  assert.equal(health.runs[0].outcomes[0].outcome, 'busy');
+  assert.equal(health.runs[0].outcomes[0].nextRetryAt, new Date(now.getTime() + IMPORT_LEASE_MS).toISOString());
+  assert.equal((await readImportHealth(busy, now.getTime() + IMPORT_LEASE_MS)).runs[0].outcomes[0].retryEligible, 1);
+  assert.equal(calls, 1);
+
+  const broken = new MemoryStore();
+  const snapshot = broken.getMetaSnapshot.bind(broken);
+  broken.getMetaSnapshot = async (key, at) => {
+    if (key.startsWith('import-details:')) throw new Error('private-coordination-error');
+    return snapshot(key, at);
+  };
+  await enrichImportedEvents(broken, [input()], now);
+  assert.equal((await readImportHealth(broken, now.getTime())).runs[0].outcomes[0].outcome, 'coordination_failure');
+  assert.equal(calls, 1);
+});
+
+test('malformed responses and deferred batches have separate health outcomes', async () => {
+  globalThis.fetch = async () => reply({ unexpected: 'shape' });
+  const store = new MemoryStore();
+  const inputs = Array.from({ length: IMPORT_BATCH_SIZE + 1 }, (_, i) => ({
+    draft: { ...emptyDraft(null), title: `Private source ${i}`, description: '' },
+  }));
+  await enrichImportedEvents(store, inputs, now);
+  const outcomes = (await readImportHealth(store, now.getTime())).runs[0].outcomes;
+  assert.equal(outcomes.find(o => o.outcome === 'invalid_response')?.count, IMPORT_BATCH_SIZE);
+  assert.equal(outcomes.find(o => o.outcome === 'invalid_response')?.retryEligible, 0);
+  assert.equal(outcomes.find(o => o.outcome === 'deferred')?.count, 1);
+  assert.equal(outcomes.find(o => o.outcome === 'deferred')?.retryEligible, 1);
 });
 
 test('full untruncated source and exact multiline evidence are available for grounding', async () => {

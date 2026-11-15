@@ -48,12 +48,32 @@ test('real HTTP organizer lifecycle, student discovery, and ownership boundaries
     assert.equal((await request('/organizer/session')).status, 401);
     assert.equal((await request('/organizer/drafts', 'POST', { text: 'Announcement' })).status, 401);
     assert.equal((await request('/organizer/events')).status, 401);
+    assert.equal((await request('/organizer/import-health')).status, 401);
+    assert.equal((await request('/import-health')).status, 404);
     assert.equal((await request('/events/missing')).status, 404);
     assert.equal((await request('/organizer/session', 'POST', { accessCode: 'wrong' })).status, 401);
   });
 
   const cookieA = await login('test-campus-a');
   const cookieB = await login('test-campus-b');
+  await t.test('import health is read-only, private, and explicit when unavailable', async () => {
+    const response = await request('/organizer/import-health', 'GET', undefined, cookieA);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.deepEqual(await response.json(), { modelConfigured: false, runs: [] });
+    const { importHealthRecorder } = await import('../server/import-health');
+    const recorder = importHealthRecorder(store, 'engagesc', new Date());
+    recorder.add('not_configured', 3, 0);
+    await recorder.save();
+    const summary = await (await request('/organizer/import-health', 'GET', undefined, cookieB)).json();
+    assert.equal(summary.runs[0].outcomes[0].retryEligible, 0);
+    assert.equal(summary.runs[0].outcomes[0].outcome, 'not_configured');
+    assert.equal((await request('/organizer/import-health', 'POST', {}, cookieA)).status, 404);
+    await store.setMeta('import-health:v1:engagesc', 'private-broken-metadata');
+    const unavailable = await request('/organizer/import-health', 'GET', undefined, cookieA);
+    assert.equal(unavailable.status, 503);
+    assert.deepEqual(await unavailable.json(), { error: 'Import health is temporarily unavailable.' });
+  });
   let id = '';
   await t.test('create and resume a private flyer draft and report missing publish fields', async () => {
     assert.equal((await (await request('/organizer/session', 'GET', undefined, cookieA)).json()).organizationName, 'Test Campus A');

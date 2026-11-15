@@ -101,6 +101,22 @@ export type SearchResponse = {
 // ---------- Responses ----------
 
 export type HealthResponse = { status: 'ok'; mode: 'live' | 'memory'; modelConfigured: boolean };
+export const importHealthOutcomes = [
+  'recovered', 'cached', 'cached_unknown', 'provider_failure', 'invalid_response',
+  'cooldown', 'busy', 'oversized', 'capacity', 'coordination_failure', 'not_configured', 'deferred',
+] as const;
+export type ImportHealthOutcome = typeof importHealthOutcomes[number];
+export type ImportHealthRun = {
+  source: 'engagesc' | 'usc-calendar';
+  checkedAt: string;
+  lastSuccessAt: string | null;
+  eventCount: number;
+  outcomes: {
+    outcome: ImportHealthOutcome; count: number;
+    retryEligible: number; nextRetryAt: string | null;
+  }[];
+};
+export type ImportHealthResponse = { modelConfigured: boolean; runs: ImportHealthRun[] };
 export type EventsResponse = { events: EventRecord[]; mode: 'live' };
 export type EventResponse = { event: EventRecord };
 export type DraftResponse = { draft: DraftRecord };
