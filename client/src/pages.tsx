@@ -24,7 +24,7 @@ export function AskPage() {
   const prompts = ['Free food this week', 'Something after 5 near campus', 'Beginner-friendly events', 'What can I do today?'];
   // One short spoken summary per search, so screen readers hear the outcome without the whole list being read out.
   const announcement = loading ? 'Searching for events…'
-    : result ? `${result.answer} ${result.noMatch || result.results.length === 0 ? 'No events matched.' : result.results.length === 1 ? '1 event found.' : `${result.results.length} events found.`}`
+    : result ? `${result.answer} ${result.results.length} exact matches and ${result.relatedResults?.length ?? 0} related suggestions.`
       : '';
   return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero">
@@ -53,11 +53,19 @@ export function AskPage() {
         {result && <>
           <div className="answer-panel">{result.answer}</div>
           {result.constraintSummary.length > 0 && <div className="chip-row">{result.constraintSummary.map((chip, index) => <span className="constraint-chip" key={`${chip}-${index}`}>{chip}</span>)}</div>}
-          <div className="section-head"><h2>{result.noMatch ? 'No events matched' : 'Worth a look'}</h2><span className="muted">{result.results.length} found</span></div>
-          {result.noMatch ? <><p className="lede">No events fit all of those details right now. The answer above explains what we understood; try easing one constraint or check Discover.</p><a className="btn btn-outline" href="#/discover">Browse Discover</a></> :
+          <div className="section-head"><h2>{result.noMatch ? result.relatedResults?.length ? 'Related events to explore' : 'No upcoming events found' : 'Worth a look'}</h2><span className="muted">{result.results.length ? `${result.results.length} matches` : `${result.relatedResults?.length ?? 0} related`}</span></div>
+          {result.noMatch ? <p className="event-meta">{result.relatedResults?.length ? 'These are suggestions, not exact matches. Each card explains which details differ or still need confirming.' : 'Try a broader question or browse Discover for all published events.'}</p> :
             result.results.length === 0 ? <EmptyState title="No matching events" action={<div className="empty-actions"><a className="btn btn-outline" href="#/discover">Browse Discover</a></div>}>Try a broader question or explore all upcoming events in Discover.</EmptyState> :
               <div className="results-list">{result.results.map(({ event, reason }) => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} reason={reason} />)}</div>}
-          {result.excluded.length > 0 && <section className="detail-section"><h3>Left out of these results</h3>{result.excluded.map((item, i) => <p className="event-meta" key={`${item.reason}-${i}`}>{item.reason}{item.count > 1 ? ` · ${item.count} events` : ''}</p>)}</section>}
+          {!!result.relatedResults?.length && <section aria-label="Related event suggestions">
+            {!result.noMatch && <div className="section-head"><h2>Related options</h2><span className="muted">Not exact matches</span></div>}
+            <div className="results-list">{result.relatedResults.map(({ event, reason, differences }) => <div key={event.id}>
+              <div className="chip-row">{differences?.map(note => <span className="constraint-chip" key={note}>{note}</span>)}</div>
+              <EventCard event={event} href={`#/event/${encodeURIComponent(event.id)}`} reason={reason} />
+            </div>)}</div>
+          </section>}
+          {result.noMatch && <p><a className="btn btn-outline" href="#/discover">Browse all events</a></p>}
+          {result.excluded.length > 0 && <section className="detail-section"><h3>Why some events are not exact matches</h3>{result.excluded.map((item, i) => <p className="event-meta" key={`${item.reason}-${i}`}>{item.reason}{item.count > 1 ? ` · ${item.count} events` : ''}</p>)}</section>}
         </>}
       </div>
       <aside className="side-note"><div className="mini-star">✦</div><h3>Trust the details.</h3><p>We keep “unknown” visible instead of guessing. Every event can lead you back to its source or flyer.</p></aside>

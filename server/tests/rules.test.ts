@@ -82,11 +82,13 @@ test('cancelled, finished and months-long listings are not returned', async () =
   assert.deepEqual(titles(r), ['Started an hour ago']);
 });
 
-test('a search with no match says so and returns nothing', async () => {
+test('a search with no exact match keeps exact results empty and labels related suggestions', async () => {
   const r = await search('robotics tonight', [event({ title: 'Poetry reading' })], NOW);
   assert.equal(r.noMatch, true);
   assert.deepEqual(r.results, []);
-  assert.match(r.answer, /couldn't find/);
+  assert.match(r.answer, /No exact matches/);
+  assert.ok(r.relatedResults?.length);
+  assert.ok(r.relatedResults?.every(item => item.differences?.length));
 });
 
 test('topic keywords match title, description and organization', async () => {

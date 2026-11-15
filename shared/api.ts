@@ -74,7 +74,7 @@ export const searchConstraintsSchema = z.object({
 });
 export type SearchConstraints = z.infer<typeof searchConstraintsSchema>;
 
-export type SearchResult = { event: EventRecord; reason: string };
+export type SearchResult = { event: EventRecord; reason: string; differences?: string[] };
 export type ExclusionNote = { reason: string; count: number };
 
 export type SearchResponse = {
@@ -82,6 +82,7 @@ export type SearchResponse = {
   constraints: SearchConstraints;
   constraintSummary: string[]; // e.g. ["Fri Nov 14", "after 5:00 PM", "free only"]
   results: SearchResult[];
+  relatedResults?: SearchResult[];
   excluded: ExclusionNote[];
   noMatch: boolean;
   interpretedBy: 'model' | 'rules';
