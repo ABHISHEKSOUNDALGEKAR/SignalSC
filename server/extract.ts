@@ -175,11 +175,12 @@ function applyReview(x: Extraction, review: Review): string[] {
   const filled = draftFields(x);
   for (const check of review.fieldChecks) {
     if (check.supported || !(check.field in filled)) continue;
+    // A value with its own quote from the flyer stays; the quote is shown beside the field for the organizer to compare.
+    if (check.field !== 'cost' && x.evidence.some(e => evidenceFor[check.field].includes(e.field) && e.excerpt.trim())) continue;
     const label = fieldLabels[check.field] ?? check.field;
     const reason = check.note ? ` ${plainNote(check.note)}` : '';
     switch (check.field) {
       case 'title': case 'date': case 'startTime':
-        if (check.field === 'startTime' && x.startTime && quotedTimes(x).includes(x.startTime)) continue;
         notes.push(`Double-check the ${label}; it could not be matched to the flyer.${reason}`);
         continue;
       case 'endTime': x.endTime = null; break;
@@ -197,20 +198,6 @@ function applyReview(x: Extraction, review: Review): string[] {
   return notes;
 }
 
-// Times quoted as start-time evidence, as 24-hour HH:MM ("6:30 PM" -> "18:30").
-function quotedTimes(x: Extraction): string[] {
-  const out: string[] = [];
-  for (const e of x.evidence) {
-    if (!evidenceFor.startTime.includes(e.field)) continue;
-    for (const m of e.excerpt.matchAll(/(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/gi)) {
-      let h = Number(m[1]) % 12;
-      if (m[3].toLowerCase() === 'p') h += 12;
-      out.push(`${String(h).padStart(2, '0')}:${m[2] ?? '00'}`);
-    }
-  }
-  return out;
-}
-
 // A no-host bar sells drinks; never let the description say they are provided.
 export function fixNoHost(description: string | null): string | null {
   if (!description || !/no[\s-]?host/i.test(description)) return description;
@@ -221,9 +208,9 @@ export function fixNoHost(description: string | null): string | null {
 }
 
 const noteTopics: [string, RegExp][] = [
-  ['year', /\byear\b/i], ['endTime', /\bend time|\bends?\b/i], ['startTime', /\bstart time|\bstarts?\b/i],
+  ['year', /\byear\b/i], ['timezone', /time ?zone/i], ['endTime', /\bend time|\bends?\b/i], ['startTime', /\bstart time|\bstarts?\b/i],
   ['deadline', /deadline|register by|rsvp by/i], ['registrationUrl', /registration link|\blink\b|\burl\b/i],
-  ['cost', /cost|admission|\bfree\b|price|ticket/i], ['food', /\bfood|meal|snack|drinks?\b/i],
+  ['cost', /cost|admission|\bfree\b|price|ticket/i], ['food', /\bfood|meal|snack|dinner|lunch|breakfast|pizza|refreshments|drinks?\b/i],
   ['eligibility', /eligib|who can attend|open to/i], ['beginner', /beginner/i],
   ['location', /location|room|building|address|venue|where/i], ['date', /\bdate\b|\bday\b|past/i], ['title', /\btitle|name\b/i],
 ];
@@ -394,10 +381,18 @@ export async function extractDraft(input: { imageBase64?: string; mimeType?: str
   // Most specific first: source checks, the app's date and link checks, review findings,
   // then generic "not found" notes and the model's general list.
   const generic = (note: string) => /^No (location|event date) found\.$/.test(note);
+  // General reminders from the review are dropped once the draft already answers them.
+  const answered: Record<string, boolean> = {
+    year: true, timezone: true, title: Boolean(draft.title), date: Boolean(draft.startsAt), startTime: Boolean(draft.startsAt),
+    endTime: Boolean(draft.endsAt), deadline: Boolean(draft.registrationDeadline), registrationUrl: Boolean(draft.registrationUrl),
+    cost: draft.costCents !== null, food: draft.food !== 'unknown', eligibility: Boolean(draft.eligibility),
+    beginner: draft.beginnerFriendly !== null, location: Boolean(draft.location) && /\d/.test(draft.location ?? ''),
+  };
+  const open = (note: string) => !answered[noteTopics.find(([, re]) => re.test(note))?.[0] ?? ''];
   draft.uncertainties = tidyNotes([
     ...guardNotes, ...draft.uncertainties.filter(n => !generic(n)), ...reviewNotes,
-    ...draft.uncertainties.filter(generic), ...(review ? review.itemsToConfirm : modelNotes).map(plainNote),
+    ...draft.uncertainties.filter(generic), ...(review ? review.itemsToConfirm.map(plainNote).filter(open) : modelNotes.map(plainNote)),
   ]);
-  const suggestions = review ? [...new Set(review.suggestions.map(plainNote).filter(Boolean))].slice(0, 4) : [];
+  const suggestions = review ? [...new Set(review.suggestions.map(plainNote).filter(Boolean))].filter(open).slice(0, 4) : [];
   return { draft, extractedBy: 'model' as const, suggestions };
 }
