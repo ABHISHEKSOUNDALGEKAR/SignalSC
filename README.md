@@ -39,6 +39,10 @@ credits or the provider is reachable.
 Run `npm run test:ai` for isolated, simulated-provider tests covering text/image
 requests, extracted unknown fields, constrained search, unavailable-provider
 errors, and unconfigured fallbacks. These tests make no external API calls.
+Run `npm run test:browser` for an interactive Chromium regression of organizer
+login, draft review and publishing, event edits and cancellation, and saved
+event persistence. It uses a private in-memory store and a fixed extraction
+fixture, so it does not touch app data or spend provider credits.
 Successful live extraction and model-interpreted search must also be checked
 with an active, funded provider account.
 

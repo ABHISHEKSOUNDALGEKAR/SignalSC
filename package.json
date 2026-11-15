@@ -9,6 +9,7 @@
   "scripts": {
     "test:ai": "node --import tsx --test tests/ai-*.test.ts",
     "test:ai:live": "node --import tsx --env-file-if-exists=.env scripts/verify-ai-live.ts",
+    "test:browser": "node --import tsx --test tests/browser-flows.test.ts",
     "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite --host 0.0.0.0",
     "dev:server": "tsx watch --env-file-if-exists=.env server/index.ts",
@@ -30,6 +31,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "playwright-core": "^1.65.1",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.1.0",
     "esbuild": "^0.25.0",
