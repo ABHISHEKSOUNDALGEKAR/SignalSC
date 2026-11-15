@@ -1,0 +1,11 @@
+{
+  "name": "Trojan Signal",
+  "short_name": "Signal",
+  "description": "Source-linked event discovery for the USC community.",
+  "start_url": "/#/ask",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f3e9",
+  "theme_color": "#990f2d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -17,5 +17,6 @@
 - `SESSION_SECRET` is supplied through Replit Secrets. Never commit credentials.
 - Development organizer access defaults to the demo codes documented in `.env.example`. Configure private `ORGANIZER_ACCESS_CODES` before real use; production has no demo-code fallback.
 - AI extraction and natural-language search require `MODEL_API_KEY`, or the existing supported `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL`. Optional model settings are documented in `.env.example`. No AI credentials were invented or added during import setup.
-- The imported React interface is a development scaffold. It connects to the event-list API but does not yet expose the backend's organizer, search, review, or publishing workflows.
+- The React interface exposes Ask, Discover, event details, device-local Saved events, and the organizer review/publish workspace. Navigation uses hash routes. The web manifest supplies app metadata; offline operation is not supported.
+- Run `node --import tsx --test tests/*.test.ts` for API lifecycle, ownership, empty-state, campus-time, and model adapter regression checks. Tests isolate their data and provider configuration from the running development app.
 - Keep the existing React/Vite, Express, shared types, npm, and PostgreSQL structure.

@@ -1,27 +1,45 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { EventListResponse } from '../../shared/events';
+import { AskPage, DiscoverPage, EventDetailPage, SavedPage } from './pages';
+import { OrganizerPage } from './organizer';
 import './style.css';
 
-function App() {
-  const [page, setPage] = useState<'discover' | 'organize'>('discover');
-  const [status, setStatus] = useState('Connecting to the event service…');
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch('/api/events', { signal: controller.signal }).then(async response => {
-      if (!response.ok) throw new Error('Service unavailable');
-      const data: EventListResponse = await response.json();
-      setStatus(data.mode === 'scaffold' ? 'Service connected · No published events yet' : `${data.events.length} published events`);
-    }).catch(error => { if (error.name !== 'AbortError') setStatus('Start the backend to connect the event service.'); });
-    return () => controller.abort();
-  }, []);
-  return <main>
-    <nav aria-label="Main navigation"><a className="brand" href="/">Trojan Signal<span>USC, happening.</span></a><div><button aria-pressed={page === 'discover'} onClick={() => setPage('discover')}>Discover</button><button aria-pressed={page === 'organize'} onClick={() => setPage('organize')}>For organizers</button></div></nav>
-    <p className="eyebrow">A clearer way to find your people</p>
-    <h1>{page === 'discover' ? <>Your campus.<br/>Your next plan.</> : <>You made the flyer.<br/>Make it discoverable.</>}</h1>
-    <p className="intro">{page === 'discover' ? 'Find campus events with details you can check and a clear next step.' : 'Upload your announcement, check the extracted details, and publish an event students can find.'}</p>
-    <section className="panel"><span className="badge">Development scaffold</span><h2>{page === 'discover' ? 'The next good thing starts here.' : 'Flyer → review → publish'}</h2><p>{page === 'discover' ? 'Published events will appear here once the event store and organizer workflow are connected.' : 'The shared event schema is ready. Flyer extraction, organizer sign-in, and the review form are next to build.'}</p><p className="status" role="status">{status}</p></section>
-    <footer>Made for Trojans. Source-linked details. Unknowns stay unknown.</footer>
-  </main>;
+function readRoute() {
+  const raw = window.location.hash.replace(/^#\/?/, '');
+  const parts = raw.split('/').filter(Boolean);
+  if (parts[0] === 'event' && parts[1]) {
+    try { return { page: 'event', id: decodeURIComponent(parts.slice(1).join('/')) }; }
+    catch { return { page: 'event', id: parts.slice(1).join('/') }; }
+  }
+  if (['discover', 'saved', 'organizer'].includes(parts[0] ?? '')) return { page: parts[0], id: '' };
+  return { page: 'ask', id: '' };
 }
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+function App() {
+  const [route, setRoute] = useState(readRoute);
+  useEffect(() => {
+    if (!window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/ask`);
+    const update = () => setRoute(readRoute());
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, []);
+  const active = route.page === 'event' ? 'discover' : route.page;
+  return <div className="app-shell">
+    <header className="topbar">
+      <a className="wordmark" href="#/ask" aria-label="Trojan Signal home"><span className="seal" aria-hidden="true">T</span><span>Trojan Signal<small>USC, happening</small></span></a>
+      <nav className="nav-links" aria-label="Main navigation">
+        <a className={`nav-link ${active === 'ask' ? 'active' : ''}`} href="#/ask">Ask</a>
+        <a className={`nav-link ${active === 'discover' ? 'active' : ''}`} href="#/discover">Discover</a>
+        <a className={`nav-link ${active === 'saved' ? 'active' : ''}`} href="#/saved">Saved</a>
+        <a className={`nav-link organizer ${active === 'organizer' ? 'active' : ''}`} href="#/organizer">Organizers</a>
+      </nav>
+    </header>
+    {route.page === 'ask' && <AskPage />}
+    {route.page === 'discover' && <DiscoverPage />}
+    {route.page === 'saved' && <SavedPage />}
+    {route.page === 'event' && <EventDetailPage key={route.id} id={route.id} />}
+    {route.page === 'organizer' && <OrganizerPage />}
+    <footer className="footer"><span>Made for Trojans. Source-linked details. Unknowns stay unknown.</span><span className="mono">LOS ANGELES · 34.0224° N</span></footer>
+  </div>;
+}
+
+createRoot(document.getElementById('root')!).render(<App />);
