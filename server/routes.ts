@@ -37,6 +37,21 @@ async function publishedEvents(store: Store): Promise<EventRecord[]> {
   return (await store.list({ statuses: ['published'] })).map(toEventRecord);
 }
 
+// The same event can arrive from more than one public feed. Keep one listing,
+// preferring the copy that shows a location. Organizer-published events are never merged.
+export function withoutFeedDuplicates(events: EventRecord[]): EventRecord[] {
+  const kept = new Map<string, number>();
+  const out: EventRecord[] = [];
+  for (const event of events) {
+    if (event.sourceKind === 'flyer') { out.push(event); continue; }
+    const key = `${event.title.trim().toLowerCase().replace(/\s+/g, ' ')}|${event.startsAt}`;
+    const index = kept.get(key);
+    if (index === undefined) { kept.set(key, out.length); out.push(event); }
+    else if (!out[index].location && event.location) out[index] = event;
+  }
+  return out;
+}
+
 export function apiRouter(store: Store) {
   const api = express.Router();
   const asyncRoute = (fn: (req: express.Request, res: express.Response) => Promise<unknown>): express.RequestHandler =>
@@ -65,7 +80,7 @@ export function apiRouter(store: Store) {
         ? titleWords.length > 0 && titleWords.every(word => e.title.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').includes(word))
         : [e.title, e.description, e.location, e.organizationName].join(' ').toLowerCase().includes(text)))
       .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
-    const body: EventsResponse = { events, mode: 'live' };
+    const body: EventsResponse = { events: withoutFeedDuplicates(events), mode: 'live' };
     res.json(body);
   }));
 

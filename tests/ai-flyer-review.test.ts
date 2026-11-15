@@ -122,3 +122,34 @@ test('review notes skip blank fields, accept 12-hour times, and stay short and n
   assert.match(draft.description, /There is a no-host bar, so guests buy their own drinks\./);
   assert.doesNotMatch(draft.description, /will be provided/);
 });
+
+test('a complete flyer keeps quoted values and gets no notes when the review quibbles over formats', async () => {
+  const complete = {
+    title: 'Intro to Climate Tech Night', description: 'A beginner-friendly panel.', date: '2026-11-19', yearStated: true,
+    startTime: '18:00', endTime: '19:30', location: 'Ginsburg Hall, Room 101', eligibility: 'Open to all USC students',
+    isFree: true, costDollars: null, food: 'advertised', beginnerFriendly: true,
+    registrationUrl: 'https://example.com/rsvp', registrationDeadlineDate: '2026-11-18', registrationDeadlineTime: null,
+    evidence: [
+      { field: 'endTime', excerpt: '6:00 PM – 7:30 PM' }, { field: 'food', excerpt: 'Dinner provided' },
+      { field: 'isFree', excerpt: 'Free' }, { field: 'eligibility', excerpt: 'Open to all USC students' },
+      { field: 'registrationDeadline', excerpt: 'RSVP by Wednesday, November 18' },
+    ],
+    uncertainties: [],
+  };
+  provider(complete, {
+    fieldChecks: [
+      { field: 'endTime', supported: false, note: 'Source states 7:30 PM, draft says 19:30' },
+      { field: 'food', supported: false, note: "Source says 'Dinner provided' but does not state it is advertised" },
+      { field: 'registrationDeadline', supported: false, note: 'Does not specify time' },
+    ],
+    description: null,
+    itemsToConfirm: ['Verify the location is Ginsburg Hall, Room 101', 'Confirm dinner is provided'],
+    suggestions: ['Add the specific room number if not already clear', 'Include the exact time zone for the event'],
+  });
+  const { draft, suggestions } = await extractDraft({ imageBase64: 'aW1n', mimeType: 'image/png' }, now);
+  assert.equal(draft.endsAt, '2026-11-19T19:30:00-08:00');
+  assert.equal(draft.food, 'advertised');
+  assert.equal(draft.registrationDeadline, '2026-11-18T23:59:00-08:00');
+  assert.deepEqual(draft.uncertainties, []);
+  assert.deepEqual(suggestions, []);
+});
