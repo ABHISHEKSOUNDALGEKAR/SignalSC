@@ -45,13 +45,6 @@ export type UpdateDraftRequest = Partial<EventDraft>;
 // PATCH /api/organizer/events/:id — edit fields and/or cancel.
 export type UpdateEventRequest = Partial<EventDraft> & { cancelled?: boolean };
 
-export const searchRequestSchema = z.object({
-  query: z.string().trim().min(1).max(500),
-  // Optional ISO time for demos/tests; defaults to server time.
-  now: z.string().datetime({ offset: true }).optional(),
-});
-export type SearchRequest = z.infer<typeof searchRequestSchema>;
-
 export const feedbackRequestSchema = z.object({
   rating: z.number().int().min(1).max(5),
   wouldReturn: z.boolean().nullable(),
@@ -63,7 +56,7 @@ export type FeedbackRequest = z.infer<typeof feedbackRequestSchema>;
 // ---------- Search ----------
 
 // What the query was understood to mean. Application code applies these, not the model.
-export const searchConstraintsSchema = z.object({
+export const searchConstraintFields = z.object({
   keywords: z.array(z.string().max(60)).max(20),
   from: z.string().datetime({ offset: true }),
   to: z.string().datetime({ offset: true }),
@@ -71,8 +64,21 @@ export const searchConstraintsSchema = z.object({
   freeOnly: z.boolean(),
   foodAdvertisedOnly: z.boolean(),
   beginnerOnly: z.boolean(),
-});
+}).strict();
+export const searchConstraintsSchema = searchConstraintFields.refine(c =>
+  Date.parse(c.to) > Date.parse(c.from) && Date.parse(c.to) - Date.parse(c.from) <= 120 * 86_400_000,
+{ message: 'Choose an end after the start, within 120 days.' });
 export type SearchConstraints = z.infer<typeof searchConstraintsSchema>;
+
+// Context is structured, client-held state, not a stored conversation.
+export const searchRequestSchema = z.object({
+  query: z.string().trim().max(500).default(''),
+  context: searchConstraintsSchema.optional(),
+  constraints: searchConstraintsSchema.optional(),
+  now: z.string().datetime({ offset: true }).optional(),
+}).strict().refine(v => !(v.context && v.constraints) && (v.constraints || v.query.length > 0),
+  { message: 'Provide a question or edited filters, not both search modes.' });
+export type SearchRequest = z.infer<typeof searchRequestSchema>;
 
 export type SearchResult = { event: EventRecord; reason: string; differences?: string[] };
 export type ExclusionNote = { reason: string; count: number };
@@ -88,6 +94,8 @@ export type SearchResponse = {
   interpretedBy: 'model' | 'rules';
   // Present when either AI stage was skipped or failed; answer also discloses it.
   fallbackReason?: 'capacity' | 'unavailable' | 'not_configured';
+  // False means the refinement failed; constraints and matching remain unchanged.
+  refinementApplied?: boolean;
 };
 
 // ---------- Responses ----------

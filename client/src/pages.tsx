@@ -1,25 +1,112 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { EventRecord, SearchResponse } from './api';
+import type { SearchConstraints } from '../../shared/api';
 import { api, ApiError } from './api';
 import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, locationLabel, money, unknown } from './common';
 import { FeedbackForm } from './feedback';
 import { readBrowserValue } from './storage';
-import { campusRange as dateQuery } from './time';
+import { campusInput, campusInstant, campusRange as dateQuery } from './time';
 
 export function AskPage() {
   const [query, setQuery] = useState('');
+  const [followUp, setFollowUp] = useState('');
   const [result, setResult] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [editedKeywords, setEditedKeywords] = useState('');
+  const [editedFrom, setEditedFrom] = useState('');
+  const [editedTo, setEditedTo] = useState('');
+  const [editedAfter, setEditedAfter] = useState('');
+  const [editedFree, setEditedFree] = useState(false);
+  const [editedFood, setEditedFood] = useState(false);
+  const [editedBeginner, setEditedBeginner] = useState(false);
+  const latestRequest = useRef(0);
+  const sessionActive = useRef(false);
+  const lastAction = useRef<{ action: () => Promise<SearchResponse>; mode: 'independent' | 'refine' | 'filters' } | null>(null);
+
+  function loadEditor(constraints: SearchConstraints) {
+    setEditedKeywords(constraints.keywords.join(', '));
+    setEditedFrom(campusInput(constraints.from));
+    setEditedTo(campusInput(constraints.to));
+    setEditedAfter(constraints.afterMinutes === null ? '' : String(constraints.afterMinutes));
+    setEditedFree(constraints.freeOnly);
+    setEditedFood(constraints.foodAdvertisedOnly);
+    setEditedBeginner(constraints.beginnerOnly);
+  }
+  async function run(action: () => Promise<SearchResponse>, mode: 'independent' | 'refine' | 'filters') {
+    const requestId = ++latestRequest.current;
+    setLoading(true);
+    setError('');
+    setValidationError('');
+    setNotice('');
+    lastAction.current = { action, mode };
+    try {
+      const response = await action();
+      if (requestId !== latestRequest.current) return;
+      if (mode !== 'independent' && response.refinementApplied === false) {
+        setNotice(response.answer);
+        return;
+      }
+      setResult(response);
+      sessionActive.current = true;
+      setFollowUp('');
+      loadEditor(response.constraints);
+    } catch (e) {
+      if (requestId === latestRequest.current) setError(e instanceof Error ? e.message : 'Search could not be completed.');
+    } finally {
+      if (requestId === latestRequest.current) setLoading(false);
+    }
+  }
   async function ask(next = query) {
     if (!next.trim() || loading) return;
     setQuery(next);
-    setLoading(true);
-    setError('');
+    const text = next.trim();
+    void run(() => api.search(text), 'independent');
+  }
+  function refine() {
+    if (!result || !sessionActive.current || !followUp.trim() || loading) return;
+    const text = followUp.trim();
+    const context = result.constraints;
+    void run(() => api.search(text, { context }), 'refine');
+  }
+  function applyFilters() {
+    if (!result || !sessionActive.current || loading) return;
+    setValidationError('');
+    try {
+      if (!editedFrom || !editedTo) throw new Error('Choose both a start and an exclusive end date and time.');
+      const from = campusInstant(editedFrom);
+      const to = campusInstant(editedTo);
+      if (!from || !to) throw new Error('Enter valid Los Angeles start and end dates.');
+      if (Date.parse(to) <= Date.parse(from) || Date.parse(to) - Date.parse(from) > 120 * 86_400_000) {
+        throw new Error('Choose an end after the start, within 120 days.');
+      }
+      const afterMinutes = editedAfter.trim() === '' ? null : Number(editedAfter);
+      if (afterMinutes !== null && (!Number.isInteger(afterMinutes) || afterMinutes < 0 || afterMinutes > 1439)) {
+        throw new Error('Enter an earliest time between 12:00 AM and 11:59 PM.');
+      }
+      const constraints: SearchConstraints = {
+        keywords: editedKeywords.split(',').map(word => word.trim()).filter(Boolean),
+        from, to, afterMinutes, freeOnly: editedFree, foodAdvertisedOnly: editedFood, beginnerOnly: editedBeginner,
+      };
+      setError('');
+      void run(() => api.search('', { constraints }), 'filters');
+    } catch (e) {
+      setValidationError(e instanceof Error ? e.message : 'Check the filter values and try again.');
+    }
+  }
+  function startNewSearch() {
+    latestRequest.current++;
+    sessionActive.current = false;
+    lastAction.current = null;
+    setQuery('');
+    setFollowUp('');
     setResult(null);
-    try { setResult(await api.search(next.trim())); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Search could not be completed.'); }
-    finally { setLoading(false); }
+    setLoading(false);
+    setError('');
+    setValidationError('');
+    setNotice('');
   }
   const prompts = ['Free food this week', 'Something after 5 near campus', 'Beginner-friendly events', 'What can I do today?'];
   // One short spoken summary per search, so screen readers hear the outcome without the whole list being read out.
@@ -46,14 +133,58 @@ export function AskPage() {
           <button className="btn btn-primary" type="submit" disabled={loading || !query.trim()}>{loading ? 'Looking…' : 'Find events'} <span aria-hidden="true">↗</span></button>
         </form>
         <p className="ask-hint" id="ask-hint">Press Enter to search · Shift+Enter for a new line</p>
+        {(result || loading) && <div className="ask-session-actions">
+          <span className="session-label">{result ? 'Current search · held in this page only' : 'Search in progress'}</span>
+          <button className="btn btn-outline" type="button" onClick={startNewSearch}>Start new search</button>
+        </div>}
         <div className="sr-only" aria-live="polite" aria-atomic="true">{announcement}</div>
         {!result && !loading && <div className="prompt-row">{prompts.map(prompt => <button key={prompt} type="button" className="prompt-chip" onClick={() => void ask(prompt)}>{prompt}</button>)}</div>}
         {loading && <><div className="answer-panel">Reading the dates, details, and constraints in your question…</div><LoadingList count={2} /></>}
-        {error && <ErrorNotice error={error} retry={() => void ask()} />}
+        {error && <ErrorNotice error={error} retry={() => {
+          if (lastAction.current && !loading) void run(lastAction.current.action, lastAction.current.mode);
+        }} />}
+        {validationError && <p className="inline-message" role="alert">{validationError}</p>}
+        {notice && <p className="inline-message" role="status">{notice}</p>}
         {result && <>
+          {sessionActive.current && <section className="refine-panel" aria-label="Refine this search">
+            <form onSubmit={e => { e.preventDefault(); refine(); }}>
+              <label className="field-label" htmlFor="ask-follow-up">Refine this search</label>
+              <div className="refine-controls">
+                <input id="ask-follow-up" type="text" maxLength={500} value={followUp} onChange={e => setFollowUp(e.target.value)}
+                  placeholder="Try “later in the evening” or “only the ones with food”"
+                  aria-describedby="follow-up-hint" />
+                <button className="btn btn-primary" type="submit" disabled={loading || !followUp.trim()}>Refine search</button>
+              </div>
+              <p className="ask-hint" id="follow-up-hint">This follow-up updates the current search. Try “later in the evening” or “next week instead.”</p>
+            </form>
+            <details className="filter-editor" open>
+              <summary>Edit interpreted filters</summary>
+              <p className="event-meta">Dates and times use America/Los_Angeles. The end date and time is exclusive: events at that instant are not included. A date range is required; widen it to 120 days to remove date narrowing.</p>
+              <button className="btn btn-outline" type="button" onClick={() => {
+                const now = Date.now();
+                setEditedFrom(campusInput(new Date(now).toISOString()));
+                setEditedTo(campusInput(new Date(now + 120 * 86_400_000).toISOString()));
+              }}>Use widest date range (120 days)</button>
+              <div className="form-grid">
+                <div className="field full"><label htmlFor="filter-keywords">Topics and keywords</label><input id="filter-keywords" value={editedKeywords} onChange={e => setEditedKeywords(e.target.value)} placeholder="Separate topics with commas" /></div>
+                <div className="field"><label htmlFor="filter-from">Start date and time (Los Angeles)</label><input id="filter-from" type="datetime-local" value={editedFrom} onChange={e => setEditedFrom(e.target.value)} /></div>
+                <div className="field"><label htmlFor="filter-to">Exclusive end date and time (Los Angeles)</label><input id="filter-to" type="datetime-local" value={editedTo} onChange={e => setEditedTo(e.target.value)} /></div>
+                <div className="field full"><label htmlFor="filter-after">Earliest time of day (optional, Los Angeles)</label><input id="filter-after" type="time" value={editedAfter === '' ? '' : `${String(Math.floor(Number(editedAfter) / 60)).padStart(2, '0')}:${String(Number(editedAfter) % 60).padStart(2, '0')}`} onChange={e => {
+                  const [hour, minute] = e.target.value.split(':').map(Number);
+                  setEditedAfter(e.target.value ? String(hour * 60 + minute) : '');
+                }} /><p className="field-help">Clear this field to remove the earliest-time filter.</p></div>
+                <div className="filter-toggle-list full" aria-label="Additional filters">
+                  <label><input type="checkbox" checked={editedFree} onChange={e => setEditedFree(e.target.checked)} /> Free only</label>
+                  <label><input type="checkbox" checked={editedFood} onChange={e => setEditedFood(e.target.checked)} /> Food advertised only</label>
+                  <label><input type="checkbox" checked={editedBeginner} onChange={e => setEditedBeginner(e.target.checked)} /> Beginner-friendly only</label>
+                </div>
+              </div>
+              <button className="btn btn-outline" type="button" onClick={applyFilters} disabled={loading}>Apply filters</button>
+            </details>
+          </section>}
           <div className="answer-panel">{result.answer}</div>
           {result.constraintSummary.length > 0 && <div className="chip-row">{result.constraintSummary.map((chip, index) => <span className="constraint-chip" key={`${chip}-${index}`}>{chip}</span>)}</div>}
-          <div className="section-head"><h2>{result.noMatch ? result.relatedResults?.length ? 'Related events to explore' : 'No upcoming events found' : 'Worth a look'}</h2><span className="muted">{result.results.length ? `${result.results.length} matches` : `${result.relatedResults?.length ?? 0} related`}</span></div>
+          <div className="section-head"><h2>{result.noMatch ? result.relatedResults?.length ? 'Related events to explore' : 'No upcoming events found' : 'Worth a look'}</h2><span className="muted">{result.results.length ? `${result.results.length} exact matches` : `${result.relatedResults?.length ?? 0} related`}</span></div>
           {result.noMatch ? <p className="event-meta">{result.relatedResults?.length ? 'These are suggestions, not exact matches. Each card explains which details differ or still need confirming.' : 'Try a broader question or browse Discover for all published events.'}</p> :
             result.results.length === 0 ? <EmptyState title="No matching events" action={<div className="empty-actions"><a className="btn btn-outline" href="#/discover">Browse Discover</a></div>}>Try a broader question or explore all upcoming events in Discover.</EmptyState> :
               <div className="results-list">{result.results.map(({ event, reason }) => <EventCard key={event.id} event={event} href={`#/event/${encodeURIComponent(event.id)}`} reason={reason} />)}</div>}

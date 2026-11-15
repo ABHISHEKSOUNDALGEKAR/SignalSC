@@ -125,9 +125,10 @@ export function apiRouter(store: Store) {
 
   api.post('/search', rateLimit(30, 60_000), asyncRoute(async (req, res) => {
     const parsed = searchRequestSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Ask a question (up to 500 characters).' });
+    if (!parsed.success) return res.status(400).json({ error: 'Provide a question up to 500 characters and valid search filters (end after start, within 120 days).' });
     const at = parsed.data.now ? new Date(parsed.data.now) : new Date();
-    res.json(await search(parsed.data.query, await publishedEvents(store), at));
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await search(parsed.data.query, await publishedEvents(store), at, parsed.data));
   }));
 
   // ---------- Organizer session ----------

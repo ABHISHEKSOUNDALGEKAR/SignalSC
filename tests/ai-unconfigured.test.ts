@@ -30,6 +30,18 @@ test('unconfigured search uses rules and returns truthful empty results', async 
   assert.equal(result.noMatch, true);
 });
 
+test('unconfigured refinements retain context and manual filter edits remain available', async () => {
+  const now = new Date('2026-11-15T12:00:00Z');
+  const initial = await search('free food next week', [], now);
+  const result = await search('later in the evening', [], now, { context: initial.constraints });
+  assert.deepEqual(result.constraints, initial.constraints);
+  assert.equal(result.refinementApplied, false);
+  assert.equal(result.fallbackReason, 'not_configured');
+  const edited = await search('', [], now, { constraints: { ...initial.constraints, freeOnly: false } });
+  assert.equal(edited.constraints.freeOnly, false);
+  assert.equal(edited.fallbackReason, undefined);
+});
+
 test('unconfigured imported-event enrichment never contacts a provider and leaves absent facts unknown', async () => {
   globalThis.fetch = async () => { throw new Error('Must not call a provider'); };
   const draft = { ...emptyDraft(null), title: 'Synthetic gathering', description: 'A discussion.' };

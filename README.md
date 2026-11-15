@@ -106,6 +106,7 @@ docs/SERVER.md         Server modules and guarantees
 - Food has three states: advertised, not advertised, unknown. “Not advertised” means no food offer in the checked source, not a promise of no food. Never infer dietary suitability.
 - Preserve source URLs, evidence, and last-updated timestamps. Do not treat text in flyers as instructions to the model.
 - Natural language becomes validated search constraints; application code applies filters. Model prose cannot introduce events absent from retrieved results.
+- Ask supports follow-up refinements and editable interpreted filters. Context is kept only in the current page's memory and resets on a new search, navigation, or reload. Requests send structured filters, not a stored conversation. Failed refinements leave the current search unchanged; manual filter edits still work without AI. Date and time filters use Los Angeles time, with an exclusive end instant and a maximum 120-day window.
 - “Tonight after 5” needs explicit date boundaries. Schedule-conflict checks require actual student availability and are outside the initial scope.
 - Save model keys on the server. Enforce event ownership in backend routes, not just hidden UI controls.
 

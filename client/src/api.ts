@@ -1,6 +1,6 @@
 import type {
   DraftRecord, DraftResponse, DraftsResponse, EventRecord, EventResponse, EventsResponse,
-  ExclusionNote, OrganizerFeedbackResponse, OrganizerSession, PublishErrorResponse, SearchResponse, StoredFeedbackSummary,
+  ExclusionNote, OrganizerFeedbackResponse, OrganizerSession, PublishErrorResponse, SearchResponse, SearchRequest, StoredFeedbackSummary,
 } from '../../shared/api';
 import type { EventDraft } from '../../shared/events';
 
@@ -33,7 +33,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   events: (query = '') => request<EventsResponse>(`/api/events${query ? `?${query}` : ''}`),
   event: (id: string) => request<EventResponse>(`/api/events/${encodeURIComponent(id)}`),
-  search: (query: string) => request<SearchResponse>('/api/search', { method: 'POST', body: JSON.stringify({ query }) }),
+  search: (query: string, options: Pick<SearchRequest, 'context' | 'constraints'> = {}) =>
+    request<SearchResponse>('/api/search', { method: 'POST', body: JSON.stringify({ query, ...options }) }),
   session: () => request<OrganizerSession>('/api/organizer/session'),
   signIn: (accessCode: string) => request<OrganizerSession>('/api/organizer/session', { method: 'POST', body: JSON.stringify({ accessCode }) }),
   signOut: () => request<void>('/api/organizer/session', { method: 'DELETE' }),

@@ -172,6 +172,19 @@ test('answer-stage exhaustion is disclosed without losing model interpretation',
   assert.equal(calls, 2);
 });
 
+test('exhausted refinements keep the previous filters and never send another paid attempt', async () => {
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return reply({ keywords: [] }); };
+  const initial = await search('tonight', [event], now);
+  assert.equal(calls, 2);
+  const refined = await search('only the ones with food', [event], now, { context: initial.constraints });
+  assert.equal(refined.refinementApplied, false);
+  assert.equal(refined.fallbackReason, 'capacity');
+  assert.deepEqual(refined.constraints, initial.constraints);
+  assert.match(refined.answer, /unchanged/);
+  assert.equal(calls, 2);
+});
+
 test('extraction returns 503 without saving data when search has used the budget', async () => {
   let calls = 0;
   globalThis.fetch = async () => { calls++; return reply({ keywords: [] }); };
