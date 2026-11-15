@@ -101,6 +101,7 @@ h3 { font-size:18px; letter-spacing:-.35px; }
 .detail-meta { color:#f1ded6; font-size:14px; line-height:1.7; position:relative; z-index:1; }
 .detail-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:25px; position:relative; z-index:2; }
 .detail-actions .btn-outline { color:#fff8ea; border-color:rgba(255,255,255,.38); }
+.calendar-note { position:relative; z-index:1; margin:12px 0 0; color:#f1ded6; font-size:12px; line-height:1.5; }
 .detail-layout { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:32px; align-items:start; }
 .detail-section { padding:24px 0; border-bottom:1px solid var(--line); }
 .detail-section h2 { font-size:25px; margin-bottom:17px; }
