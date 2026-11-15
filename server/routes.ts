@@ -101,7 +101,7 @@ export function apiRouter(store: Store) {
     const ics = buildIcs({
       id: e.id, title: e.title, description: e.description, startsAt: e.startsAt!, endsAt: e.endsAt, location: e.location,
       url: e.registrationUrl ?? e.sourceUrl, cancelled: e.status === 'cancelled', updatedAt: e.updatedAt,
-    }, req.hostname || 'trojan-signal');
+    }, req.hostname || 'signalsc');
     const filename = (e.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'event') + '.ics';
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

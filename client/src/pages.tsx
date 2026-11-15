@@ -3,6 +3,7 @@ import type { EventRecord, SearchResponse } from './api';
 import { api, ApiError } from './api';
 import { Confirmation, dateGroups, dateLabel, EmptyState, ErrorNotice, EventCard, LoadingList, locationLabel, money, unknown } from './common';
 import { FeedbackForm } from './feedback';
+import { readBrowserValue } from './storage';
 import { campusRange as dateQuery } from './time';
 
 export function AskPage() {
@@ -27,7 +28,7 @@ export function AskPage() {
       : '';
   return <main id="main-content" tabIndex={-1} className="page">
     <section className="hero">
-      <div className="eyebrow">Trojan Signal · Find your people</div>
+      <div className="eyebrow">SignalSC · Find your people</div>
       <h1>Ask what’s<br />happening.</h1>
       <p className="lede">A campus plan is better when you know what’s confirmed. Search in your own words; details stay linked to their source.</p>
       <div className="hero-rule" />
@@ -133,7 +134,7 @@ export function EventDetailPage({ id }: { id: string }) {
     }
     const next = saved ? ids.filter(value => value !== id) : [...new Set([...ids, id])];
     try {
-      localStorage.setItem('trojan-signal-saved', JSON.stringify(next)); setSaved(!saved); setSaveError('');
+      localStorage.setItem('signalsc-saved', JSON.stringify(next)); setSaved(!saved); setSaveError('');
     } catch { setSaveError('This browser could not save the event. Allow site storage and try again.'); }
   }
   return <main id="main-content" tabIndex={-1} className="page">
@@ -167,7 +168,7 @@ function Field({ label, children, missing = false }: { label: string; children: 
 }
 function readSaved(): string[] | null {
   try {
-    const stored = localStorage.getItem('trojan-signal-saved');
+    const stored = readBrowserValue('saved');
     if (stored === null) return [];
     const value: unknown = JSON.parse(stored);
     return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : null;

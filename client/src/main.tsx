@@ -95,7 +95,7 @@ function App() {
   return <div className="app-shell">
     <a className="skip-link" href="#main-content" onClick={skipToContent}>Skip to content</a>
     <header className="topbar">
-      <a className="wordmark" href="#/ask" aria-label="Trojan Signal home"><span className="seal" aria-hidden="true">T</span><span>Trojan Signal<small>USC, happening</small></span></a>
+      <a className="wordmark" href="#/ask" aria-label="SignalSC home"><span className="seal" aria-hidden="true">S</span><span>SignalSC<small>USC, happening</small></span></a>
       <nav className="nav-links" aria-label="Main navigation">
         <a className={`nav-link ${active === 'ask' ? 'active' : ''}`} aria-current={current('ask')} href="#/ask">Ask</a>
         <a className={`nav-link ${active === 'discover' ? 'active' : ''}`} aria-current={current('discover')} href="#/discover">Discover</a>

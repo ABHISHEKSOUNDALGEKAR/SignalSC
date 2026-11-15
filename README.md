@@ -1,6 +1,6 @@
-# Trojan Signal
+# SignalSC
 
-Trojan Signal turns the flyers student orgs already make into checked, searchable events, so Trojans can ask “what can I go to tonight?” and find source-linked answers.
+SignalSC turns the flyers student orgs already make into checked, searchable events, so Trojans can ask “what can I go to tonight?” and find source-linked answers.
 
 ## Start developing
 

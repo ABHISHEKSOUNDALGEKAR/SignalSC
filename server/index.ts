@@ -31,7 +31,7 @@ app.use((error: Error & { status?: number; type?: string }, _req: express.Reques
 });
 const port = Number(process.env.PORT ?? 3001);
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Trojan Signal service listening on ${port} (${store.mode} store)`);
+  console.log(`SignalSC service listening on ${port} (${store.mode} store)`);
   // Public EngageSC events are imported in the background. Set ENGAGESC_ICS_URL=off to disable.
   const feedUrl = process.env.ENGAGESC_ICS_URL || DEFAULT_FEED_URL;
   if (feedUrl !== 'off') scheduleFeedImport(store, feedUrl);

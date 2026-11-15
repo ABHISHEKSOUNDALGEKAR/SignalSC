@@ -28,7 +28,7 @@ export function buildIcs(e: CalendarEventInput, host: string) {
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : new Date(start.getTime() + 60 * 60 * 1000);
   const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Trojan Signal//Events//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SignalSC//Events//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     'BEGIN:VEVENT',
     `UID:${e.id}@${host}`,
     `DTSTAMP:${utcStamp(new Date(e.updatedAt))}`,

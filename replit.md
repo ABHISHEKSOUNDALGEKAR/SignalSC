@@ -1,4 +1,6 @@
-# Trojan Signal on Replit
+# SignalSC on Replit
+
+The product is named **SignalSC** (package identifier `signalsc`). Preserve legacy browser-storage migration when changing saved-event or feedback keys so existing users keep their data.
 
 ## Run
 

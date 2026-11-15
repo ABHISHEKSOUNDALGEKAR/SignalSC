@@ -3,16 +3,17 @@ import type { EventRecord } from './api';
 import { api, ApiError } from './api';
 import type { FeedbackSummary, OrganizerFeedbackResponse } from '../../shared/api';
 import { ErrorNotice } from './common';
+import { readBrowserValue } from './storage';
 
-const DEVICE_KEY = 'trojan-signal-device';
-const SUBMITTED_KEY = 'trojan-signal-feedback-submitted';
+const DEVICE_KEY = 'signalsc-device';
+const SUBMITTED_KEY = 'signalsc-feedback-submitted';
 
 function makeDeviceKey() {
   return window.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function savedSubmittedEvents(): string[] {
-  const raw = localStorage.getItem(SUBMITTED_KEY);
+  const raw = readBrowserValue('feedback-submitted');
   if (!raw) return [];
   try {
     const value: unknown = JSON.parse(raw);
@@ -50,7 +51,7 @@ export function FeedbackForm({ event }: { event: EventRecord }) {
   useEffect(() => {
     if (!started) return;
     try {
-      let key = localStorage.getItem(DEVICE_KEY);
+      let key = readBrowserValue('device');
       if (!key || key.length < 8 || key.length > 64) {
         key = makeDeviceKey();
         localStorage.setItem(DEVICE_KEY, key);

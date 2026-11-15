@@ -93,7 +93,7 @@ export type ImportResult = { inserted: number; updated: number; unchanged: numbe
 
 export async function importFeed(store: Store, url: string, now = new Date()): Promise<ImportResult> {
   const sourceKind: EventDraft['sourceKind'] = /calendar\.usc\.edu/.test(url) ? 'usc-calendar' : 'engagesc';
-  const response = await fetch(url, { headers: { Accept: 'text/calendar', 'User-Agent': 'TrojanSignal/0.1 (student project)' }, signal: AbortSignal.timeout(30_000) });
+  const response = await fetch(url, { headers: { Accept: 'text/calendar', 'User-Agent': 'SignalSC/0.1 (student project)' }, signal: AbortSignal.timeout(30_000) });
   if (!response.ok) throw new Error(`Feed request failed: ${response.status}`);
   const parsed = parseIcs(await response.text(), campusTimeToDate);
   const result: ImportResult = { inserted: 0, updated: 0, unchanged: 0, skipped: 0 };
