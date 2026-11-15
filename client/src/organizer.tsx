@@ -4,6 +4,7 @@ import { api, ApiError } from './api';
 import type { EventDraft } from '../../shared/events';
 import { dateLabel, EmptyState, ErrorNotice, LoadingList, unknown } from './common';
 import { campusInput as dateInput, campusInstant } from './time';
+import { confirmLeavingWithUnsavedChanges, setUnsavedChange } from './unsaved-changes';
 
 const blankDraft = (): EventDraft => ({
   title: '', description: '', startsAt: null, endsAt: null, timezone: 'America/Los_Angeles',
@@ -47,13 +48,17 @@ function Evidence({ draft, field }: { draft: EventDraft; field: string }) {
 function fieldLabel(key: string): string {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
 }
-function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, missing, mode }: {
+function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, missing, mode, onDirtyChange }: {
   initial: EventDraft; onSave: (draft: EventDraft) => void; onPublish?: (draft: EventDraft) => void;
   saving: boolean; publishing: boolean; message: string; missing: string[]; mode: 'draft' | 'event';
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const [draft, setDraft] = useState<EventDraft>(initial);
   const [timeError, setTimeError] = useState('');
+  const isDirty = JSON.stringify(draftPatch(draft)) !== JSON.stringify(draftPatch(initial));
   useEffect(() => setDraft(initial), [initial]);
+  useEffect(() => { onDirtyChange(isDirty); }, [isDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   const set = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) => setDraft(old => ({ ...old, [key]: value }));
   function dateValue(value: string): string | null {
     try { const result = campusInstant(value); setTimeError(''); return result; }
@@ -82,6 +87,7 @@ function ReviewForm({ initial, onSave, onPublish, saving, publishing, message, m
         </div>
         {timeError && <div className="inline-message" role="alert">{timeError}</div>}
         {message && <div className="inline-message" role="status">{message}{missing.length > 0 && <ul>{missing.map(item => <li key={item}>{fieldLabel(item)}</li>)}</ul>}</div>}
+        {isDirty && <div className="event-meta" role="status">Unsaved field changes · {mode === 'draft' ? 'the saved server draft remains unchanged.' : 'the saved event remains unchanged on the server.'}</div>}
         <div className="form-actions">
           <button className="btn btn-outline" type="submit" disabled={saving || publishing || !!timeError}>{saving ? 'Saving…' : 'Save review'}</button>
           {mode === 'draft' && onPublish && <button className="btn btn-primary" type="button" disabled={saving || publishing || !!timeError} onClick={() => onPublish(draft)}>{publishing ? 'Publishing…' : 'Save & publish'}</button>}
@@ -119,6 +125,17 @@ export function OrganizerPage() {
   const [formMessage, setFormMessage] = useState('');
   const [missing, setMissing] = useState<string[]>([]);
   const [dataError, setDataError] = useState('');
+  const [reviewDirty, setReviewDirty] = useState(false);
+  const announcementDirty = text.length > 0 || sourceUrl.length > 0 || file !== null;
+
+  useEffect(() => {
+    setUnsavedChange('announcement', announcementDirty);
+    return () => setUnsavedChange('announcement', false);
+  }, [announcementDirty]);
+  useEffect(() => {
+    setUnsavedChange('review', reviewDirty);
+    return () => setUnsavedChange('review', false);
+  }, [reviewDirty]);
 
   async function checkSession() {
     setChecking(true);
@@ -145,6 +162,7 @@ export function OrganizerPage() {
     finally { setSigning(false); }
   }
   async function signOut() {
+    if (!confirmLeavingWithUnsavedChanges()) return;
     try {
       await api.signOut();
       setSession(null); setDrafts([]); setEvents([]); setSelected(null); setEditEvent(null);
@@ -233,6 +251,7 @@ export function OrganizerPage() {
           {file && <p className="event-meta">Selected: {file.name}</p>}
           <div className="field"><label htmlFor="announcement">Or paste announcement text</label><textarea id="announcement" maxLength={10000} rows={4} value={text} onChange={e => setText(e.target.value)} placeholder="Paste the event copy from your announcement…" /></div>
           <div className="field"><label htmlFor="source-link">Source link (optional)</label><input id="source-link" type="url" placeholder="https://" value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} /></div>
+          {announcementDirty && <p className="event-meta" role="status">New announcement input · not saved until you create a review draft.</p>}
           {uploading && <><div className="progress-track" aria-label="Reading the announcement"><span /></div><p className="event-meta" role="status">Reading the flyer and finding event details… This can take 5–15 seconds.</p></>}
           {uploadError && <div className="inline-message" role="alert">{uploadError}</div>}
           <button className="btn btn-primary" onClick={() => void upload()} disabled={uploading}>{uploading ? 'Reading…' : 'Create review draft'}</button>
@@ -247,12 +266,12 @@ export function OrganizerPage() {
           <div className="table-list">{events.map(event => <div className="draft-row" key={event.id}><div><h3>{event.title}</h3><div className="event-meta">{dateLabel(event.startsAt)} · {unknown(event.location)}</div></div><div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'flex-end' }}><span className={`badge ${event.status === 'cancelled' ? 'cancelled' : 'confirmed'}`}>{event.status}</span><button className="btn btn-outline" onClick={() => { setEditEvent(event); setFormMessage(''); }}>Edit</button><button className={`btn ${event.status === 'cancelled' ? 'btn-quiet' : 'btn-danger'}`} onClick={() => void cancelEvent(event)}>{event.status === 'cancelled' ? 'Restore' : 'Cancel'}</button></div></div>)}</div>}
       </section>
     </>}
-    {selected && <section><div className="section-head"><div><div className="eyebrow">Draft review · {selected.extractedBy === 'model' ? 'Extracted from flyer' : 'Manual entry'}</div><h2>Check every detail.</h2></div><button className="btn btn-outline" onClick={() => { setSelected(null); setFormMessage(''); }}>Back to workspace</button></div>
+    {selected && <section><div className="section-head"><div><div className="eyebrow">Draft review · {selected.extractedBy === 'model' ? 'Extracted from flyer' : 'Manual entry'}</div><h2>Check every detail.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setSelected(null); setFormMessage(''); }}>Back to workspace</button></div>
       {selected.flyerUrl && <div className="source-card"><h3>Original flyer</h3><img className="flyer" src={selected.flyerUrl} alt={`Flyer for ${selected.draft.title || 'draft event'}`} /></div>}
-      <ReviewForm key={selected.id} initial={selected.draft} onSave={saveDraft} onPublish={publishDraft} saving={saveBusy} publishing={publishBusy} message={formMessage} missing={missing} mode="draft" />
+      <ReviewForm key={selected.id} initial={selected.draft} onSave={saveDraft} onPublish={publishDraft} saving={saveBusy} publishing={publishBusy} message={formMessage} missing={missing} mode="draft" onDirtyChange={setReviewDirty} />
     </section>}
-    {editEvent && <section><div className="section-head"><div><div className="eyebrow">Published event · {editEvent.status}</div><h2>Edit event details.</h2></div><button className="btn btn-outline" onClick={() => { setEditEvent(null); setFormMessage(''); }}>Back to workspace</button></div>
-      <ReviewForm key={editEvent.id} initial={editEvent} onSave={saveEvent} saving={saveBusy} publishing={false} message={formMessage} missing={missing} mode="event" />
+    {editEvent && <section><div className="section-head"><div><div className="eyebrow">Published event · {editEvent.status}</div><h2>Edit event details.</h2></div><button className="btn btn-outline" onClick={() => { if (!confirmLeavingWithUnsavedChanges()) return; setEditEvent(null); setFormMessage(''); }}>Back to workspace</button></div>
+      <ReviewForm key={editEvent.id} initial={editEvent} onSave={saveEvent} saving={saveBusy} publishing={false} message={formMessage} missing={missing} mode="event" onDirtyChange={setReviewDirty} />
     </section>}
   </main>;
 }

@@ -105,6 +105,44 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
 
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel('Or paste announcement text').fill('Unsaved announcement input.');
+    await page.locator('#flyer-file').setInputFiles({
+      name: 'unsaved-flyer.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('test flyer'),
+    });
+    const announcementReloadGuard = await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    assert.equal(announcementReloadGuard, true, 'unsaved announcement input must request a reload warning');
+    const reloadDialogPromise = page.waitForEvent('dialog');
+    const reloadAttempt = page.reload({ timeout: 5000 }).catch(() => undefined);
+    const reloadDialog = await reloadDialogPromise;
+    assert.equal(reloadDialog.type(), 'beforeunload');
+    await reloadDialog.dismiss();
+    await reloadAttempt;
+    assert.equal(await page.getByLabel('Or paste announcement text').inputValue(), 'Unsaved announcement input.');
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('link', { name: 'Saved', exact: true }).click();
+    await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
+    assert.equal(await page.getByLabel('Or paste announcement text').inputValue(), 'Unsaved announcement input.');
+    await page.getByText('Selected: unsaved-flyer.png').waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true);
+    let acceptedAnnouncementWarning = '';
+    page.once('dialog', async dialog => {
+      acceptedAnnouncementWarning = dialog.message();
+      await dialog.accept();
+    });
+    await page.getByRole('link', { name: 'Saved', exact: true }).click();
+    await page.getByRole('heading', { name: /Keep the plans/ }).waitFor();
+    assert.match(acceptedAnnouncementWarning, /unsaved.*announcement/i);
+    await page.getByRole('link', { name: 'Organizers' }).click();
+    await page.getByRole('heading', { name: /Good to see you, Browser Test Org/ }).waitFor();
+
+    await page.locator('#flyer-file').setInputFiles([]);
     await page.getByLabel('Or paste announcement text').fill('Fixed test fixture announcement.');
     const createdResponse = page.waitForResponse(response =>
       response.url().endsWith('/api/organizer/drafts') && response.request().method() === 'POST');
@@ -115,9 +153,33 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     const eventId = draft.id;
     await page.getByRole('heading', { name: 'Check every detail.' }).waitFor();
     assert.equal(await page.getByLabel('Event title *').inputValue(), FIXTURE_EXTRACTION.title);
+    await page.getByLabel('Description').fill('Unsaved review field change.');
+    await page.getByText('Unsaved field changes · the saved server draft remains unchanged.').waitFor();
+    const hasReloadGuard = await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    assert.equal(hasReloadGuard, true, 'unsaved review changes must request a reload warning');
+    await page.getByRole('link', { name: 'Saved', exact: true }).focus();
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.keyboard.press('Enter');
+    await page.getByRole('heading', { name: 'Check every detail.' }).waitFor();
+    assert.equal(await page.getByLabel('Description').inputValue(), 'Unsaved review field change.');
+    const backWarning = page.waitForEvent('dialog');
+    await page.evaluate(() => window.history.back());
+    const backDialog = await backWarning;
+    assert.match(backDialog.message(), /unsaved.*review field changes/i);
+    await backDialog.dismiss();
+    await page.getByRole('heading', { name: 'Check every detail.' }).waitFor();
+    assert.equal(await page.getByLabel('Description').inputValue(), 'Unsaved review field change.');
 
     await page.getByLabel('Starts at *').fill('');
     await page.getByLabel('Location').fill('');
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('button', { name: 'Back to workspace' }).click();
+    await page.getByRole('heading', { name: 'Check every detail.' }).waitFor();
+    assert.equal(await page.getByLabel('Location').inputValue(), '');
     const rejectedPublish = page.waitForResponse(response =>
       response.url().endsWith(`/api/organizer/drafts/${eventId}/publish`) && response.status() === 422);
     await page.getByRole('button', { name: 'Save & publish' }).click();
@@ -174,6 +236,13 @@ test('organizer publishing and device-local saved-event flows work in a browser'
     assert.equal(await page.getByRole('button', { name: 'Saved' }).getAttribute('aria-pressed'), 'true');
 
     await page.getByRole('link', { name: 'Organizers' }).click();
+    await eventRow.getByRole('button', { name: 'Edit' }).click();
+    await page.getByLabel('Description').fill('Unsaved change before sign out.');
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await page.getByRole('heading', { name: 'Edit event details.' }).waitFor();
+    assert.equal(await page.getByLabel('Description').inputValue(), 'Unsaved change before sign out.');
+    page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Sign out' }).click();
     await page.getByRole('heading', { name: 'Organizer sign in' }).waitFor();
     assert.deepEqual(pageErrors, [], `Browser console errors: ${pageErrors.join('; ')}`);

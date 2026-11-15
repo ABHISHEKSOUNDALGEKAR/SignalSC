@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AskPage, DiscoverPage, EventDetailPage, SavedPage } from './pages';
 import { OrganizerPage } from './organizer';
+import { confirmLeavingWithUnsavedChanges, hasUnsavedChanges } from './unsaved-changes';
 import './style.css';
 
 function readRoute() {
@@ -18,9 +19,69 @@ function App() {
   const [route, setRoute] = useState(readRoute);
   useEffect(() => {
     if (!window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/ask`);
-    const update = () => setRoute(readRoute());
+    let currentHash = window.location.hash;
+    let skipHashChange = false;
+    let restoringHistory = false;
+    const update = () => {
+      if (skipHashChange) {
+        skipHashChange = false;
+        currentHash = window.location.hash;
+        setRoute(readRoute());
+        return;
+      }
+      if (hasUnsavedChanges() && !confirmLeavingWithUnsavedChanges()) {
+        window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${currentHash}`);
+        return;
+      }
+      currentHash = window.location.hash;
+      setRoute(readRoute());
+    };
+    const onPopState = () => {
+      if (restoringHistory) {
+        restoringHistory = false;
+        if (window.location.hash !== currentHash) skipHashChange = true;
+        return;
+      }
+      const changedHash = window.location.hash !== currentHash;
+      if (!hasUnsavedChanges()) {
+        if (changedHash) skipHashChange = true;
+        currentHash = window.location.hash;
+        setRoute(readRoute());
+        return;
+      }
+      if (confirmLeavingWithUnsavedChanges()) {
+        if (changedHash) skipHashChange = true;
+        currentHash = window.location.hash;
+        setRoute(readRoute());
+      } else {
+        restoringHistory = true;
+        window.history.forward();
+      }
+    };
+    const onDocumentClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest<HTMLAnchorElement>('a[href^="#"]');
+      if (!anchor || anchor.target === '_blank' || anchor.href === window.location.href || !hasUnsavedChanges()) return;
+      if (!confirmLeavingWithUnsavedChanges()) event.preventDefault();
+      else skipHashChange = true;
+    };
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
     window.addEventListener('hashchange', update);
-    return () => window.removeEventListener('hashchange', update);
+    window.addEventListener('popstate', onPopState);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    document.addEventListener('click', onDocumentClick);
+    return () => {
+      window.removeEventListener('hashchange', update);
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      document.removeEventListener('click', onDocumentClick);
+    };
   }, []);
   const active = route.page === 'event' ? 'discover' : route.page;
   return <div className="app-shell">
